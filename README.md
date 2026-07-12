@@ -10,7 +10,7 @@ The project is deliberately a **thin, secure adapter**. It does not replace Home
 
 ## Status
 
-**Design / pre-implementation.** This repository documents the intended v0.1 architecture and installation workflow before code is written. It is **not installable yet**.
+**Contract validation / pre-component implementation.** This repository is **not installable yet**. The narrow Hermes Responses API contract is now live-verified against Hermes Agent 0.18.2 and covered by deterministic plus explicitly opt-in live tests; Home Assistant component code has not been implemented.
 
 The initial plan was independently reviewed with **Codex GPT-5.6 Sol, medium reasoning**. The review identified three blockers that are now explicit design requirements:
 
@@ -19,6 +19,8 @@ The initial plan was independently reviewed with **Codex GPT-5.6 Sol, medium rea
 3. Conversation identity, serialization, expiry, reset, and privacy boundaries must be implemented and tested before release.
 
 Read the complete reviewed plan in [`docs/plans/2026-07-12-initial-design.md`](docs/plans/2026-07-12-initial-design.md).
+
+The verified request/response schema, errors, limits, evidence boundary, and test commands are documented in [`docs/hermes-responses-contract.md`](docs/hermes-responses-contract.md).
 
 ## Superficial design
 
@@ -68,6 +70,7 @@ See [`SECURITY.md`](SECURITY.md) for the threat model and responsible disclosure
 
 - [Installation and usage guide](docs/installation-and-usage.md)
 - [Architecture](docs/architecture.md)
+- [Verified Hermes Responses API contract](docs/hermes-responses-contract.md)
 - [Reviewed v0.1 design plan](docs/plans/2026-07-12-initial-design.md)
 - [Contributor and agent instructions](AGENTS.md)
 - [Security model](SECURITY.md)

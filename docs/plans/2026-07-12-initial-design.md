@@ -52,7 +52,7 @@ Hermes should normally run its API server on loopback. An operator exposes it to
 
 v0.1 targets **`POST /v1/responses`** on a Hermes API server that advertises `responses_api: true` from `GET /v1/capabilities`. It sends a bearer token in `Authorization`, JSON content only, `stream: false`, a bounded plain-text `input`, and an opaque `conversation` key. Hermes’s current API documentation describes named conversations as the stateful mechanism; **Hermes is the only history owner**, so the HA integration does **not** include Home Assistant `ChatLog` history in requests.
 
-Before the first implementation release, an automated contract test must prove the exact `/v1/responses` request/response schema against the pinned minimum Hermes version. The integration must fail closed for an unsupported server/capability instead of silently falling back to another endpoint. It must never automatically retry a request that may have initiated an action: a network timeout is an indeterminate result.
+The automated contract test live-verified the exact narrow `/v1/responses` request/response schema and named-conversation continuity against Hermes Agent 0.18.2 on 2026-07-12. That is now the minimum Hermes contract version; earlier versions remain unverified. Deterministic fixture tests run offline, while live verification requires an explicit flag, URL, and token. The integration must fail closed for an unsupported server/capability instead of silently falling back to another endpoint. It must never automatically retry a request that may have initiated an action: a network timeout is an indeterminate result.
 
 ### Conversation lifecycle
 
@@ -69,7 +69,7 @@ Only an allowlisted request DTO (`input`, opaque `conversation`, declared model/
 ## Remaining validation items
 
 1. Pin the minimum Home Assistant version after compiling/running against its current Conversation entity API and testing setup/unload/reload registration.
-2. Confirm Hermes’s `/v1/responses` schema and model identifier with an automated contract test against the minimum Hermes version.
+2. ~~Confirm Hermes’s `/v1/responses` schema and model identifier with an automated contract test against the minimum Hermes version.~~ Completed against Hermes Agent 0.18.2; see `docs/hermes-responses-contract.md`.
 3. Implement config-entry duplicate prevention, reauthentication/token rotation, options updates, TLS failures, and endpoint-unavailable behavior.
 4. Define a future server-side confirmation capability before enabling high-impact actions.
 
