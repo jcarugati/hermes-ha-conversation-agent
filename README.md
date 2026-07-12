@@ -42,8 +42,9 @@ objects fail closed during configuration, setup, and every pre-send capability c
 The deterministic Hermes contract verifier requires the same exact security object
 before its first POST, and its successful evidence contains only sanitized validated
 policy values. Together with the defensive async client, it covers the fixed
-`/health`, `/v1/capabilities`, and `/v1/responses` surface. The strengthened verifier
-still needs a fresh live run before a minimum Hermes version can be pinned.
+`/health`, `/v1/capabilities`, and `/v1/responses` surface. It passed against the
+private home gateway on 2026-07-12; that gateway-specific evidence does not pin a
+minimum version or certify generic Hermes servers.
 
 ## Safety boundary
 
