@@ -13,8 +13,10 @@ to Home Assistant's conversation entity component. Home Assistant passes
 log, persist, or forward their transcript content. It returns a fixed `query_answer`
 with no successful or failed action targets.
 
-The spike contains no network client, Hermes configuration, capability validation,
-conversation state, cache, TTL, serialization, diagnostics, config flow, or tools.
+The spike now contains a standalone network client with strict validation for the
+three verified Hermes endpoints, but no code instantiates or wires it. There is no
+Hermes configuration, conversation state, cache, TTL, serialization, diagnostics,
+config flow, or tool interface.
 Its HA-backed registration and `async_converse` test is evidence for this narrow API
 shape and minimal package layout only, not for production installation lifecycle,
 Assist/Voice pipelines, Hermes interoperability, or production readiness.
@@ -53,11 +55,18 @@ Home Assistant holds voice-device, Assist, and Home Assistant credentials. Those
 
 ### Proposed bridge component
 
-The planned component would be an asynchronous HTTP client and Conversation entity,
-not a general proxy. The v0.1 design requires it to accept only an operator-configured
-Hermes endpoint, validate that endpoint, use bearer authentication, disable redirects,
-enforce normal TLS, bound payloads and deadlines, and sanitize final speech. None of
-these production features exist in the spike.
+The implemented asynchronous client is not a general proxy. It accepts only a base
+URL, bearer token, and explicit limits from a future caller; calls only `/health`,
+`/v1/capabilities`, and `/v1/responses`; disables redirects; uses HTTPS by default;
+and bounds payloads, output, connect time, and total time. It exposes no arbitrary
+path, header, tool, or action parameters. Home Assistant wiring and configuration do
+not yet exist. The client uses only the injected shared async session and refuses to
+dispatch if that session currently contains cookies.
+
+Each `async_respond` validates bounded request data, then performs authenticated
+`GET /v1/capabilities`. It sends exactly one `POST /v1/responses` only when the
+capabilities object advertises bearer-required `responses_api`, the fixed endpoint,
+and the requested model. There is no capability cache and no retry.
 
 ### Hermes
 
@@ -82,7 +91,9 @@ The verifier does not establish Hermes retention capacity or durability. Continu
 | --- | --- |
 | Endpoint unavailable before dispatch | Return brief spoken availability failure; no action occurred. |
 | Auth/capability failure | Return setup-oriented failure; do not save unsupported config. |
-| Invalid JSON/content type/oversized response | Return brief safe failure; log only redacted diagnostics. |
+| Capability HTTP/schema/auth/model failure | Fail closed before POST. |
+| Invalid JSON/content type/oversized response before POST | Return brief safe failure; log only redacted diagnostics. |
+| POST HTTP error or malformed/oversized/invalid response | Say outcome may be unknown; do not retry automatically. |
 | Timeout/disconnect after dispatch | Say outcome may be unknown; do not retry automatically. |
 | Hermes tool failure | Return Hermes’s safe final text if available; otherwise concise failure. |
 
@@ -106,4 +117,10 @@ spoken confirmation cannot substitute for these controls.
 
 A user should make Hermes reachable to Home Assistant only over a private path—such as a LAN reverse proxy or Tailscale—with TLS where possible. The verifier does not establish a default Hermes bind address. The API must not be directly Internet-accessible.
 
-HTTP can be necessary on a trusted isolated LAN, but is an explicit opt-in because it exposes bearer tokens and voice text to the network.
+HTTP can be necessary on a trusted isolated LAN, but is an explicit opt-in because it
+exposes bearer tokens and voice text to the network. Opt-in alone is insufficient:
+the client accepts plaintext only for loopback, RFC 1918, link-local, IPv6 ULA,
+Tailscale CGNAT (`100.64.0.0/10`), `localhost`, or `.local`, `.home.arpa`, and
+`.ts.net` hostnames. It rejects public and unclassified HTTP hosts. Hostname suffixes
+are an operator trust assertion; HTTPS remains preferred because DNS and the LAN are
+otherwise part of the trust boundary.

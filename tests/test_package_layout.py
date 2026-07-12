@@ -46,7 +46,6 @@ def test_skeleton_does_not_scaffold_out_of_scope_runtime_features() -> None:
     assert "requirements" not in manifest
 
     excluded_modules = {
-        "client.py",
         "config_flow.py",
         "diagnostics.py",
         "conversation_cache.py",

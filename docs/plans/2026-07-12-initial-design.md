@@ -82,6 +82,19 @@ Only an allowlisted request DTO (`input`, opaque `conversation`, declared model/
 - [x] Document that the inert spike has no Hermes execution sink and does not provide end-to-end enforcement.
 - [ ] Require a verified Hermes read-only/status execution profile at every future request/tool sink, with startup and request-time fail-closed verification.
 
+### Tracker task: Construir cliente HTTP seguro para Hermes
+
+- [x] Add an injected-session asynchronous client for only `/health`,
+  `/v1/capabilities`, and `/v1/responses`.
+- [x] Enforce HTTPS by default, explicit HTTP opt-in, safe base URLs, bearer headers,
+  disabled redirects, strict JSON/schema checks, and bounded payloads/deadlines.
+- [x] Propagate cancellation and make dispatched response timeouts indeterminate with
+  no automatic retry.
+- [x] Keep the request interface data-only with no generic paths, headers, tools, or
+  action fields.
+- [ ] Wire the client into configuration and ConversationEntity lifecycle (separate
+  tracker tasks).
+
 ## Implementation phases
 
 1. Repository and contributor documentation: README, AGENTS.md, security policy, architecture diagram, installation/use guide, development setup, and a detailed implementation plan.
@@ -94,6 +107,20 @@ Only an allowlisted request DTO (`input`, opaque `conversation`, declared model/
 
 - Installation does not require editing Home Assistant Core.
 - HA can validate a configured Hermes endpoint before saving the entry.
+- The standalone client revalidates authenticated `responses_api` capabilities before
+  every Responses POST and proves that capability failure dispatches no POST.
+- Plaintext opt-in is constrained to the documented local/private/Tailscale address
+  policy; public and unclassified HTTP hosts are rejected.
+- Numeric deadlines and limits reject booleans, non-finite/non-positive values, and
+  wrong types; client error representations never include the configured URL/token.
+- Real loopback aiohttp tests cover redirect refusal (including bearer presence only on
+  the refused initial request), cookie non-forwarding/refusal, rejection of an ephemeral
+  self-signed certificate under aiohttp's normal trust validation, TLS non-downgrade,
+  body-read timeout, cancellation, and exactly-one POST dispatch. Connect-timeout
+  classification is exercised through a real `ClientSession` and asynchronous connector
+  lifecycle whose connection establishment is deliberately stalled; this deterministic
+  boundary proves aiohttp's connect deadline and the client's pre-dispatch classification
+  without relying on environment-specific routing behavior for an unroutable address.
 - A selected Assist pipeline successfully receives and speaks a Hermes response.
 - Two different Assist conversation IDs do not share context.
 - Network failure, invalid auth, malformed API data, timeout, and Hermes tool failure return short, safe spoken failures rather than throwing an unhandled exception.

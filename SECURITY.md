@@ -4,7 +4,18 @@
 
 The proposed v0.1 production integration will bridge spoken requests from Home Assistant Assist to an agent capable of using tools. That production bridge will be a security-sensitive boundary and must prioritize a small attack surface, explicit trust boundaries, and fail-closed behavior over broad automation capability.
 
-The current compatibility spike only registers a Conversation entity and returns a fixed response. It does not connect to Hermes, send transcripts or tokens, expose diagnostics, or implement the production network bridge described below.
+The current compatibility spike only registers a Conversation entity and returns a
+fixed response. It does not connect to Hermes, send transcripts or tokens, expose
+diagnostics, or implement the production network bridge described below. An unwired
+client module implements the fixed outbound HTTP contract for future callers; it
+stores configuration only in memory and never logs requests, URLs, transcripts, or
+tokens.
+
+The client has no arbitrary tool/action field or generic request interface. This
+data-only shape prevents callers from adding tool definitions through the client, but
+does not attest or constrain tools configured independently on Hermes. Production
+wiring therefore remains blocked on the documented read-only/status execution-profile
+control.
 
 ## Proposed security requirements for the v0.1 production bridge
 
@@ -12,13 +23,23 @@ The strengthened Hermes contract verifier has deterministic coverage but still a
 
 - Hermes API access over a private LAN/Tailscale/reverse-proxy route; never public Internet exposure.
 - Bearer token supplied in an HTTP Authorization header, never in a URL.
-- Normal TLS certificate validation by default; plaintext HTTP only with explicit acknowledgement.
+- Normal TLS certificate validation by default. Plaintext HTTP requires explicit
+  acknowledgement and is accepted only for loopback, RFC 1918, IPv4/IPv6 link-local,
+  IPv6 ULA, Tailscale `100.64.0.0/10`, or hostnames ending in `.local`, `.home.arpa`,
+  or `.ts.net` (plus `localhost`). Public and unclassified HTTP hosts are rejected.
 - No redirects on authenticated outbound requests.
+- Refuse an injected shared session that currently contains cookies, so Home
+  Assistant cookies cannot accompany Hermes requests. The client never creates a
+  private session.
 - Strict endpoint/response validation, bounded request/response sizes, and bounded deadlines.
 - Home Assistant credentials, cookies, contexts, service tokens, device/user identifiers, and `ChatLog` history never leave HA through this integration.
 - Voice transcripts and bearer tokens never appear in logs, diagnostics, entities, issue templates, fixtures, or Git history.
 - Diagnostics use Home Assistant redaction utilities and are tested against nested sensitive fields.
 - No automatic retry after a timeout or disconnect once a request could have reached Hermes.
+- Every Responses API call revalidates authenticated capabilities before POST; a
+  failed capability check sends no POST. Once POST is dispatched, HTTP errors,
+  malformed/oversized/invalid responses, read timeouts, and disconnects are reported
+  as indeterminate and are never retried automatically.
 
 ## Proposed v0.1 handling of high-impact actions
 

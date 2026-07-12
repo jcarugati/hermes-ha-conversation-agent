@@ -56,7 +56,20 @@ production behavior.
 
 The remaining sections record a possible operator workflow for the planned v0.1.
 They are design notes, not instructions that work with this spike. The spike has no
-configuration UI, network client, diagnostics, or production lifecycle.
+configuration UI, diagnostics, or production lifecycle. A developer-only HTTP client
+exists for future wiring, but the installed entity does not instantiate or call it.
+
+The client requires its future caller to supply Home Assistant's shared asynchronous
+HTTP session plus an already managed base URL and token. HTTPS is mandatory by
+default; plaintext HTTP requires the caller's explicit opt-in and is limited to
+loopback, RFC 1918, link-local, IPv6 ULA, Tailscale `100.64.0.0/10`, `localhost`, or
+`.local`, `.home.arpa`, and `.ts.net` hostnames. Public or unclassified HTTP hosts are
+rejected. It does not store those values or provide operator configuration.
+
+The caller must inject Home Assistant's shared async HTTP session. The client creates
+no session of its own and refuses to dispatch while the injected session contains
+cookies. Before every Responses POST, it performs an authenticated capability check;
+failure or a missing `responses_api` feature sends no POST.
 
 ### Proposed prerequisites
 
@@ -109,6 +122,7 @@ Do **not** bind Hermes directly to a public interface or port-forward it to the 
 
 The proposed config flow would require explicit acknowledgement for a trusted local
 HTTP-only network because both bearer tokens and speech text could be observed there.
+Acknowledgement would not override the local/private-host allowlist above.
 
 ### 3. Possible production installation after a future release
 
@@ -188,3 +202,5 @@ spike.
 4. Confirm the API token is current and is not embedded in the URL.
 5. If a future request times out after dispatch, do not repeat the action immediately.
    The action may have completed; inspect the relevant device state first.
+6. Treat any POST HTTP error, malformed/oversized response, response-body timeout, or
+   disconnect as indeterminate for the same reason; the client sends no automatic retry.
