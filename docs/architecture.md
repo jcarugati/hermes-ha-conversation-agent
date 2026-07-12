@@ -60,7 +60,13 @@ URL, bearer token, and explicit limits from a future caller; calls only `/health
 `/v1/capabilities`, and `/v1/responses`; disables redirects; uses HTTPS by default;
 and bounds payloads, output, connect time, and total time. It exposes no arbitrary
 path, header, tool, or action parameters. Home Assistant wiring and configuration do
-not yet exist.
+not yet exist. The client uses only the injected shared async session and refuses to
+dispatch if that session currently contains cookies.
+
+Each `async_respond` validates bounded request data, then performs authenticated
+`GET /v1/capabilities`. It sends exactly one `POST /v1/responses` only when the
+capabilities object advertises bearer-required `responses_api`, the fixed endpoint,
+and the requested model. There is no capability cache and no retry.
 
 ### Hermes
 
@@ -85,7 +91,9 @@ The verifier does not establish Hermes retention capacity or durability. Continu
 | --- | --- |
 | Endpoint unavailable before dispatch | Return brief spoken availability failure; no action occurred. |
 | Auth/capability failure | Return setup-oriented failure; do not save unsupported config. |
-| Invalid JSON/content type/oversized response | Return brief safe failure; log only redacted diagnostics. |
+| Capability HTTP/schema/auth/model failure | Fail closed before POST. |
+| Invalid JSON/content type/oversized response before POST | Return brief safe failure; log only redacted diagnostics. |
+| POST HTTP error or malformed/oversized/invalid response | Say outcome may be unknown; do not retry automatically. |
 | Timeout/disconnect after dispatch | Say outcome may be unknown; do not retry automatically. |
 | Hermes tool failure | Return Hermes’s safe final text if available; otherwise concise failure. |
 
@@ -109,4 +117,10 @@ spoken confirmation cannot substitute for these controls.
 
 A user should make Hermes reachable to Home Assistant only over a private path—such as a LAN reverse proxy or Tailscale—with TLS where possible. The verifier does not establish a default Hermes bind address. The API must not be directly Internet-accessible.
 
-HTTP can be necessary on a trusted isolated LAN, but is an explicit opt-in because it exposes bearer tokens and voice text to the network.
+HTTP can be necessary on a trusted isolated LAN, but is an explicit opt-in because it
+exposes bearer tokens and voice text to the network. Opt-in alone is insufficient:
+the client accepts plaintext only for loopback, RFC 1918, link-local, IPv6 ULA,
+Tailscale CGNAT (`100.64.0.0/10`), `localhost`, or `.local`, `.home.arpa`, and
+`.ts.net` hostnames. It rejects public and unclassified HTTP hosts. Hostname suffixes
+are an operator trust assertion; HTTPS remains preferred because DNS and the LAN are
+otherwise part of the trust boundary.

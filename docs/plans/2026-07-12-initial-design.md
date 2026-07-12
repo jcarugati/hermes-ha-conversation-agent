@@ -107,6 +107,14 @@ Only an allowlisted request DTO (`input`, opaque `conversation`, declared model/
 
 - Installation does not require editing Home Assistant Core.
 - HA can validate a configured Hermes endpoint before saving the entry.
+- The standalone client revalidates authenticated `responses_api` capabilities before
+  every Responses POST and proves that capability failure dispatches no POST.
+- Plaintext opt-in is constrained to the documented local/private/Tailscale address
+  policy; public and unclassified HTTP hosts are rejected.
+- Numeric deadlines and limits reject booleans, non-finite/non-positive values, and
+  wrong types; client error representations never include the configured URL/token.
+- Real loopback aiohttp tests cover redirect refusal, cookie non-forwarding/refusal,
+  TLS non-downgrade, body-read timeout, cancellation, and exactly-one POST dispatch.
 - A selected Assist pipeline successfully receives and speaks a Hermes response.
 - Two different Assist conversation IDs do not share context.
 - Network failure, invalid auth, malformed API data, timeout, and Hermes tool failure return short, safe spoken failures rather than throwing an unhandled exception.

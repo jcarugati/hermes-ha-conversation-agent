@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import asyncio
+import ipaddress
 import json
+import math
 from dataclasses import dataclass
+from numbers import Real
 from typing import Any, Final
 from urllib.parse import unquote, urlsplit, urlunsplit
 
@@ -18,6 +21,21 @@ DEFAULT_MAX_UTTERANCE_CHARS: Final = 8_192
 DEFAULT_MAX_OUTPUT_CHARS: Final = 8_192
 MAX_MODEL_CHARS: Final = 512
 MAX_CONVERSATION_CHARS: Final = 512
+_HTTP_HOST_SUFFIXES: Final = (".local", ".home.arpa", ".ts.net")
+_HTTP_NETWORKS: Final = tuple(
+    ipaddress.ip_network(network)
+    for network in (
+        "127.0.0.0/8",
+        "10.0.0.0/8",
+        "172.16.0.0/12",
+        "192.168.0.0/16",
+        "169.254.0.0/16",
+        "100.64.0.0/10",
+        "::1/128",
+        "fc00::/7",
+        "fe80::/10",
+    )
+)
 
 
 class HermesClientError(RuntimeError):
@@ -30,6 +48,10 @@ class HermesProtocolError(HermesClientError):
 
 class HermesIndeterminateError(HermesClientError):
     """A dispatched request timed out and its outcome may be unknown."""
+
+
+class _HermesPreDispatchError(HermesClientError):
+    """A sanitized failure known to have happened before request dispatch."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -65,6 +87,8 @@ def _validate_base_url(base_url: str, allow_insecure_http: bool) -> str:
         raise ValueError("base URL must use HTTPS and include a host")
     if parsed.scheme == "http" and not allow_insecure_http:
         raise ValueError("base URL must use HTTPS unless insecure HTTP is explicitly allowed")
+    if parsed.scheme == "http" and not _is_allowed_http_host(hostname):
+        raise ValueError("plaintext HTTP is limited to allowlisted local/private hosts")
     if parsed.username is not None or parsed.password is not None:
         raise ValueError("base URL must not contain credentials")
     if parsed.query or parsed.fragment:
@@ -76,6 +100,31 @@ def _validate_base_url(base_url: str, allow_insecure_http: bool) -> str:
     host = f"[{hostname}]" if ":" in hostname else hostname
     netloc = f"{host}:{port}" if port is not None else host
     return urlunsplit((parsed.scheme, netloc, "", "", ""))
+
+
+def _is_allowed_http_host(hostname: str) -> bool:
+    """Allow plaintext only for explicit local/private address classes and DNS suffixes."""
+    normalized = hostname.rstrip(".").lower()
+    try:
+        address = ipaddress.ip_address(normalized)
+    except ValueError:
+        return normalized == "localhost" or normalized.endswith(_HTTP_HOST_SUFFIXES)
+    return any(address in network for network in _HTTP_NETWORKS)
+
+
+def _positive_timeout(name: str, value: object) -> float:
+    if isinstance(value, bool) or not isinstance(value, Real):
+        raise ValueError(f"{name} must be a finite positive number")
+    converted = float(value)
+    if not math.isfinite(converted) or converted <= 0:
+        raise ValueError(f"{name} must be a finite positive number")
+    return converted
+
+
+def _positive_limit(name: str, value: object) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+        raise ValueError(f"{name} must be a positive integer")
+    return value
 
 
 def _required_string(payload: dict[str, Any], key: str, endpoint: str) -> str:
@@ -112,18 +161,12 @@ class HermesClient:
         self.base_url = _validate_base_url(base_url, allow_insecure_http)
         if not token or "\r" in token or "\n" in token:
             raise ValueError("bearer token must be non-empty and header-safe")
-        if (
-            min(
-                connect_timeout,
-                total_timeout,
-                max_request_bytes,
-                max_response_bytes,
-                max_utterance_chars,
-                max_output_chars,
-            )
-            <= 0
-        ):
-            raise ValueError("client limits and deadlines must be positive")
+        connect_timeout = _positive_timeout("connect_timeout", connect_timeout)
+        total_timeout = _positive_timeout("total_timeout", total_timeout)
+        max_request_bytes = _positive_limit("max_request_bytes", max_request_bytes)
+        max_response_bytes = _positive_limit("max_response_bytes", max_response_bytes)
+        max_utterance_chars = _positive_limit("max_utterance_chars", max_utterance_chars)
+        max_output_chars = _positive_limit("max_output_chars", max_output_chars)
         self._session = session
         self._token = token
         self._timeout = aiohttp.ClientTimeout(total=total_timeout, connect=connect_timeout)
@@ -174,10 +217,24 @@ class HermesClient:
         encoded = json.dumps(body, ensure_ascii=False, separators=(",", ":")).encode()
         if len(encoded) > self._max_request_bytes:
             raise ValueError(f"request exceeds {self._max_request_bytes} bytes")
-        payload = await self._request_json(
-            "POST", "/v1/responses", authenticated=True, body=encoded, indeterminate=True
-        )
-        return self._parse_response(payload, model)
+        capabilities = await self.async_capabilities()
+        if capabilities.model != model:
+            raise HermesProtocolError("/v1/capabilities model does not match the request")
+        try:
+            payload = await self._request_json(
+                "POST", "/v1/responses", authenticated=True, body=encoded, indeterminate=True
+            )
+            return self._parse_response(payload, model)
+        except asyncio.CancelledError:
+            raise
+        except HermesIndeterminateError:
+            raise
+        except _HermesPreDispatchError:
+            raise
+        except HermesClientError:
+            raise HermesIndeterminateError(
+                "POST /v1/responses failed after dispatch; outcome may be unknown"
+            ) from None
 
     @staticmethod
     def _validate_request_string(name: str, value: str, maximum: int) -> None:
@@ -198,15 +255,35 @@ class HermesClient:
             headers["Authorization"] = f"Bearer {self._token}"
         if body is not None:
             headers["Content-Type"] = "application/json"
+        headers["Cookie"] = ""
+        cookie_jar = getattr(self._session, "cookie_jar", None)
+        if cookie_jar is not None and any(True for _cookie in cookie_jar):
+            raise _HermesPreDispatchError(
+                f"{method} {path} refused a shared session containing cookies"
+            )
         try:
-            async with self._session.request(
+            request = self._session.request(
                 method,
                 f"{self.base_url}{path}",
                 headers=headers,
                 data=body,
                 allow_redirects=False,
                 timeout=self._timeout,
-            ) as response:
+            )
+        except asyncio.CancelledError:
+            raise
+        except aiohttp.ConnectionTimeoutError:
+            raise _HermesPreDispatchError(f"{method} {path} connect timed out") from None
+        except aiohttp.ClientConnectorError:
+            raise _HermesPreDispatchError(
+                f"{method} {path} connection failed before dispatch"
+            ) from None
+        except HermesClientError:
+            raise HermesClientError(f"{method} {path} request setup failed") from None
+        except (TimeoutError, aiohttp.ClientError):
+            raise HermesClientError(f"{method} {path} request setup failed") from None
+        try:
+            async with request as response:
                 if response.status != 200:
                     raise HermesProtocolError(f"{method} {path} returned HTTP {response.status}")
                 media_type = (
@@ -223,6 +300,12 @@ class HermesClient:
                         )
         except asyncio.CancelledError:
             raise
+        except aiohttp.ConnectionTimeoutError:
+            raise _HermesPreDispatchError(f"{method} {path} connect timed out") from None
+        except aiohttp.ClientConnectorError:
+            raise _HermesPreDispatchError(
+                f"{method} {path} connection failed before dispatch"
+            ) from None
         except TimeoutError:
             if indeterminate:
                 raise HermesIndeterminateError(

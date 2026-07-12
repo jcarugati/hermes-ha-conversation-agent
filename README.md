@@ -73,7 +73,10 @@ integration today.
 
 The client accepts only model, bounded text input, and an opaque conversation key for
 `POST /v1/responses`; it exposes no generic path, headers, tools, actions, or retry
-facility. Installing this component still exposes only the fixed-response developer entity. Do not
+facility. Before every POST it performs an authenticated `GET /v1/capabilities` and
+fails closed unless the exact bearer-authenticated Responses API contract is
+advertised; capability failure dispatches no POST. Installing this component still
+exposes only the fixed-response developer entity. Do not
 install it expecting a usable Hermes conversation agent. The planned v0.1 below
 remains unimplemented.
 
@@ -101,7 +104,7 @@ A conversation remains scoped to its originating Assist conversation using an op
 ## Safety model
 
 - The Hermes API is never exposed directly to the public Internet.
-- The integration uses a private LAN/Tailscale/reverse-proxy path with bearer authentication and TLS by default.
+- The integration uses a private LAN/Tailscale/reverse-proxy path with bearer authentication and TLS by default. Explicit plaintext opt-in is still restricted to loopback, RFC 1918, link-local, IPv6 ULA, Tailscale CGNAT addresses, or `.local`, `.home.arpa`, and `.ts.net` names.
 - Home Assistant credentials, cookies, contexts, and raw chat history are **not** forwarded to Hermes.
 - Voice text and API tokens are not logged by this integration.
 - A spoken confirmation is not authentication.
