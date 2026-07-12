@@ -36,4 +36,3 @@ select = ["ASYNC", "B", "E", "F", "I", "S", "UP"]
 python_version = "3.14"
 strict = true
 files = ["custom_components", "tools", "tests"]
-

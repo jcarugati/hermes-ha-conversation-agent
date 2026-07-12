@@ -1,12 +1,18 @@
-# Hermes Home Assistant Conversation Agent
+# Home Assistant ConversationEntity compatibility spike
 
-> A Home Assistant custom integration that connects **Assist / Home Assistant Voice** to **Hermes Agent** for private, spoken, tool-using home conversations.
+> A fixed-response developer spike that verifies one Home Assistant Conversation entity
+> API shape. It does not connect Assist, Home Assistant Voice, or Hermes Agent.
 
 ## Mission
 
-Make Hermes a first-class **Home Assistant Conversation Agent**: a person speaks to Home Assistant Voice, Assist transcribes the request, Hermes reasons and uses its configured tools, and Home Assistant speaks Hermes’s final answer.
+The proposed project would make Hermes a **Home Assistant Conversation Agent**: Assist
+would pass a transcribed request to Hermes, and Home Assistant would speak Hermes's
+final answer. That bridge is a future goal, not functionality in this spike.
 
-The project is deliberately a **thin, secure adapter**. It does not replace Home Assistant’s STT, TTS, wake-word detection, dashboards, entity registry, or automation engine. It does not reimplement smart-home commands. Home Assistant owns the voice pipeline; Hermes owns reasoning and tool selection.
+The proposed bridge is deliberately a **thin, secure adapter**. It would not replace
+Home Assistant's STT, TTS, wake-word detection, dashboards, entity registry, or
+automation engine. Home Assistant would own the voice pipeline; Hermes would own
+reasoning and tool selection.
 
 ## Status
 
@@ -17,7 +23,7 @@ contains one deliberately inert custom component used only to test Home Assistan
 current entity-based Conversation API. It registers a single entity and always returns
 the same non-action-bearing reply.
 
-The spike is tested against **Home Assistant Core 2026.7.1** on Python 3.14. The test
+The spike is tested against **Home Assistant Core 2026.7.1** on Python 3.14.2. The test
 starts Home Assistant, loads the custom integration through HA's integration loader,
 verifies entity registration, and sends input through HA's `async_converse` dispatcher.
 This is narrow API compatibility evidence only; it does not establish installability,
@@ -45,7 +51,7 @@ the fixed HA response.
 Do not copy this component into a Home Assistant installation expecting a usable
 conversation agent. The planned v0.1 below remains unimplemented.
 
-## Superficial design
+## Proposed v0.1 design
 
 ```text
 Home Assistant Voice

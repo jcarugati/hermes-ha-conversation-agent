@@ -13,21 +13,27 @@ Hermes connection, token or endpoint configuration, tools, conversation state, o
 config flow. It neither inspects nor forwards the utterance or Home Assistant
 `ChatLog`.
 
-The automated test is pinned to Home Assistant Core 2026.7.1 and Python 3.14. It uses
+The automated test is pinned to Home Assistant Core 2026.7.1 and Python 3.14.2. It uses
 Home Assistant's own test harness, integration loader, entity registration, and
 `async_converse` dispatcher:
 
 ```bash
-uv python install 3.14
-uv sync --python 3.14
-uv run --python 3.14 pytest
+uv python install 3.14.2
+uv sync --python 3.14.2
+uv run --python 3.14.2 pytest
 ```
 
 Passing this test demonstrates only that the fixed-reply entity matches that release's
 Conversation API. It does not test Assist/Voice, STT/TTS, installation lifecycle,
 Hermes, or any production behavior.
 
-## Prerequisites
+## Proposed v0.1 operator workflow (not implemented)
+
+The remaining sections record a possible operator workflow for the planned v0.1.
+They are design notes, not instructions that work with this spike. The spike has no
+configuration UI, network client, diagnostics, or production lifecycle.
+
+### Proposed prerequisites
 
 - A working Home Assistant installation with Assist and a configured voice pipeline.
 - Hermes Agent with a configured model and any desired toolsets.
@@ -36,7 +42,7 @@ Hermes, or any production behavior.
 - A Hermes Agent version that advertises and passes the committed contract verifier. No minimum version is pinned yet.
 - A supported Home Assistant release, still to be pinned by the v0.1 compatibility matrix.
 
-## 1. Enable Hermes API server
+### 1. Enable a future Hermes API server
 
 On the Hermes host, configure the API server with a new, long random key. Keep this outside Git and do not paste it into issues/chat:
 
@@ -62,7 +68,7 @@ curl "$HERMES_BASE_URL/v1/capabilities" \
 
 Contributors can run the deterministic and explicitly gated live contract checks described in [`hermes-responses-contract.md`](hermes-responses-contract.md). Do not put the real token or private URL in repository files or command output.
 
-## 2. Provide private connectivity
+### 2. Provide private connectivity for a future bridge
 
 Home Assistant must be able to reach Hermes, but the API must not be public.
 
@@ -74,9 +80,10 @@ Recommended patterns:
 
 Do **not** bind Hermes directly to a public interface or port-forward it to the Internet. Do not put the bearer token in a URL query string.
 
-For a trusted local HTTP-only network, the future config flow will require an explicit acknowledgement that both the bearer token and speech text can be observed on that network.
+The proposed config flow would require explicit acknowledgement for a trusted local
+HTTP-only network because both bearer tokens and speech text could be observed there.
 
-## 3. Install the future component (planned; not the spike)
+### 3. Possible installation after a future release
 
 ### HACS
 
@@ -97,18 +104,19 @@ For a trusted local HTTP-only network, the future config flow will require an ex
 2. Restart Home Assistant.
 3. Add the integration from **Settings → Devices & services**.
 
-## 4. Configure the future component (planned)
+### 4. Proposed configuration
 
-The config flow will request:
+A future config flow is expected to request:
 
 - Private Hermes base URL, such as `https://hermes.home.arpa`.
 - Hermes API bearer token.
 - Optional spoken response language/length preferences.
 - Explicit acknowledgement when using plaintext HTTP.
 
-It will validate the configured server with its capabilities endpoint before saving. It will reject unsupported Hermes versions/capabilities rather than silently falling back to an incompatible API.
+The v0.1 design requires such a flow to validate the server capabilities before saving
+and reject unsupported contracts. This behavior does not exist in the spike.
 
-## 5. Select the future Hermes agent for Assist (planned)
+### 5. Possible Assist selection after a future release
 
 1. Go to **Settings → Voice assistants**.
 2. Create or edit an assistant.
@@ -116,7 +124,7 @@ It will validate the configured server with its capabilities endpoint before sav
 4. Keep your preferred STT and TTS providers unchanged.
 5. Assign the assistant to the Home Assistant Voice device.
 
-## Expected usage
+### Proposed usage
 
 Examples once v0.1 ships:
 
@@ -125,17 +133,21 @@ Examples once v0.1 ships:
 - “¿Cuál es la temperatura en la oficina?”
 - “¿Qué pasó hoy en casa?”
 
-Answers should be brief and appropriate for speech.
+The proposed v0.1 would return answers brief enough for speech.
 
-## Safety limitations in v0.1
+### Required safety limitations for v0.1
 
 Until Hermes supports server-side, parameter-bound confirmation, this integration must not perform high-impact actions such as opening garages/doors, locks, alarms, pet feeding, destructive tasks, or Home Assistant configuration changes. A voice phrase such as “confirmo” is not proof of identity.
 
-## Troubleshooting checklist
+### Proposed troubleshooting considerations
+
+These checks apply only after a production bridge implements the relevant network,
+configuration, and error-handling features; they cannot be performed against this
+spike.
 
 1. Check the Hermes API locally with `/health`.
 2. Check `GET /v1/capabilities` with bearer auth and ensure `responses_api` is present.
 3. From the Home Assistant host/network, verify DNS/routing/TLS to the private Hermes endpoint.
 4. Confirm the API token is current and is not embedded in the URL.
-5. Check the Home Assistant integration diagnostics for redacted connection errors only; transcripts and tokens should not appear.
-6. If a request times out after it was sent, do not repeat the action immediately. The action may have completed; inspect the relevant device state first.
+5. If a future request times out after dispatch, do not repeat the action immediately.
+   The action may have completed; inspect the relevant device state first.
