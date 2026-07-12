@@ -75,11 +75,12 @@ Only an allowlisted request DTO (`input`, opaque `conversation`, declared model/
 
 ### Tracker task: Restringir herramientas y acciones sensibles
 
-- [x] Define an HA-side operation taxonomy with a distinct read-only/status class.
-- [x] Permit callback dispatch only for that read-only/status class.
-- [x] Fail closed for locks, alarms, doors/garage, pet feeding, destructive work, HA configuration, other actions, and unclassified work.
-- [x] Prove blocked classes never invoke an executable callback and that no prompt/confirmation override exists.
-- [x] Document that Hermes-side profile enforcement remains external and that the current spike has no Hermes execution route.
+- [x] Remove caller-controlled operation classification and the generic executable callback dispatcher.
+- [x] Expose one HA-local prototype contract for an explicit read-only/status capability.
+- [x] Make action-bearing and unclassified operations unavailable through the public policy interface by construction.
+- [x] Prove no public policy route dispatches supplied high-impact labels and that no prompt/confirmation override exists.
+- [x] Document that the inert spike has no Hermes execution sink and does not provide end-to-end enforcement.
+- [ ] Require a verified Hermes execution profile/toolset capability at every future request/tool sink, with startup and request-time fail-closed verification.
 
 ## Implementation phases
 

@@ -29,7 +29,7 @@ verifies entity registration, and sends input through HA's `async_converse` disp
 This is narrow API compatibility evidence only; it does not establish installability,
 Voice pipeline behavior, Hermes compatibility, or production readiness.
 
-The initial plan was independently reviewed with **Codex GPT-5.6 Sol, medium reasoning**. The review identified three blockers that are now explicit design requirements:
+The initial plan records three blockers as explicit design requirements:
 
 1. Dangerous actions must be blocked until Hermes exposes an enforceable, server-side confirmation contract—not just a prompt.
 2. v0.1 uses Hermes’s stateful `POST /v1/responses` contract with named conversations, after an automated compatibility test pins the supported Hermes version.
@@ -48,13 +48,18 @@ utterance or HA `ChatLog`. Home Assistant constructs those objects as part of th
 current API call; the entity uses only the language and conversation ID needed to form
 the fixed HA response.
 
-The repository now also defines the v0.1 executable-route boundary. Its only
-authorizable operation class is explicit read-only/status work. Locks, alarms,
-doors/garages, pet feeding, destructive work, Home Assistant configuration, every
-other action, and unclassified work are rejected before a supplied route can run.
-There is no prompt or spoken-confirmation override. This policy is ready for a future
-bridge to consume, but the inert spike does not yet dispatch any request to it or to
-Hermes.
+The repository also contains an HA-local prototype contract with one explicit
+read-only/status capability. It has no generic operation dispatcher or caller-supplied
+action classification, and accepts no prompt or spoken-confirmation override. All
+action-bearing and unclassified operations are unavailable through this interface by
+construction. The inert entity does not call this contract or Hermes, so this is not
+end-to-end enforcement and is not production-ready.
+
+Real enforcement requires a verified Hermes execution profile/toolset capability and
+integration of the restriction at every request and tool-execution sink. A future
+bridge must verify that capability at startup and request time and fail closed when it
+is absent, stale, or unverifiable. This repository has no such Hermes attestation or
+execution integration today.
 
 Do not copy this component into a Home Assistant installation expecting a usable
 conversation agent. The planned v0.1 below remains unimplemented.

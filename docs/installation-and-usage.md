@@ -126,10 +126,9 @@ and reject unsupported contracts. This behavior does not exist in the spike.
 
 ### Proposed usage
 
-Examples once v0.1 ships:
+Read-only/status examples for the currently permitted future scope:
 
 - “¿Qué luces quedaron prendidas?”
-- “Apagá las luces de abajo.”
 - “¿Cuál es la temperatura en la oficina?”
 - “¿Qué pasó hoy en casa?”
 
@@ -139,11 +138,17 @@ The proposed v0.1 would return answers brief enough for speech.
 
 Until Hermes supports server-side, parameter-bound confirmation, this integration must not perform high-impact actions such as opening garages/doors, locks, alarms, pet feeding, destructive tasks, or Home Assistant configuration changes. A voice phrase such as “confirmo” is not proof of identity.
 
-The committed HA-side policy therefore exposes only an explicit read-only/status
-route. All action-bearing and unclassified operation classes fail closed before the
-route callback runs. This is policy/interface evidence, not a usable Hermes feature:
-the current entity still returns its fixed inert response and has no network client,
-tool configuration, or natural-language classifier.
+The committed HA-local prototype contract exposes only an explicit read-only/status
+route. It has no generic route accepting an operation label, so action-bearing and
+unclassified operations are unavailable through its public interface by construction.
+Prompt text and spoken or replayed confirmation are not accepted inputs.
+
+This is a local interface contract, not a usable Hermes feature or end-to-end safety
+control. The current entity returns a fixed inert response and has no network client,
+tool configuration, classifier, or Hermes execution sink. A real bridge additionally
+requires a verified Hermes execution profile/toolset capability, restriction at every
+request and tool-execution sink, and startup plus request-time verification that fails
+closed whenever the capability is absent, stale, or unverifiable.
 
 ### Proposed troubleshooting considerations
 

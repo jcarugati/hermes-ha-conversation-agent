@@ -26,17 +26,19 @@ A model instruction such as “ask for confirmation” does not reliably protect
 
 Until Hermes provides a server-enforced confirmation API that binds a pending action ID, exact action parameters, origin conversation, and expiry, the proposed v0.1 production bridge must block high-impact actions. This includes locks, alarms, doors/garage, pet feeding, deletion/destructive commands, and Home Assistant configuration changes.
 
-The committed HA-side executable-route policy enforces this boundary without prompt
-wording. Only explicitly classified read-only/status work can invoke its callback;
-the named high-impact categories, other actions, and unclassified work raise before
-execution. Prompt injection and spoken or replayed confirmation cannot alter this API
-because it accepts neither prompt text nor confirmation state.
+The committed HA-local prototype contract exposes only a capability-specific
+read-only/status route. It has no generic dispatcher accepting caller-controlled
+operation classifications, so action-bearing and unclassified operations are absent
+from its public interface. Prompt injection and spoken or replayed confirmation cannot
+alter this API because it accepts neither prompt text nor confirmation state.
 
-Hermes tool profiles are external server configuration and cannot be constrained by
-this repository today. The current component therefore remains inert and sends
-nothing to Hermes. A future network bridge must use the policy interface and a
-Hermes profile independently verified to expose read-only/status capabilities only;
-absence of either condition must fail closed.
+This is a prototype/interface property only, not end-to-end enforcement. Hermes tool
+profiles are external server configuration, and the current inert component sends
+nothing to Hermes and has no tool-execution sink. A future network bridge requires a
+verified Hermes execution profile/toolset capability and enforcement at every request
+and tool sink. It must verify the capability at startup and request time and fail
+closed when the capability is absent, stale, or unverifiable. No such attestation or
+integration exists in this repository today.
 
 ## Reporting a vulnerability
 
