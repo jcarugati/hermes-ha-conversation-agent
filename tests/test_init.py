@@ -1,7 +1,8 @@
 """Tests for config-entry setup, reload, and unload."""
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import (  # type: ignore[import-untyped]
@@ -10,7 +11,9 @@ from pytest_homeassistant_custom_component.common import (  # type: ignore[impor
 
 from custom_components.hermes_conversation.client import (
     HermesAuthenticationError,
+    HermesClient,
     HermesClientError,
+    HermesProtocolError,
 )
 from custom_components.hermes_conversation.const import (
     CONF_ALLOW_INSECURE_HTTP,
@@ -60,19 +63,47 @@ async def test_unavailable_setup_raises_not_ready(hass: HomeAssistant) -> None:
     assert entry.state is ConfigEntryState.SETUP_RETRY
 
 
-async def test_authentication_rejection_starts_reauth(hass: HomeAssistant) -> None:
-    """Stored 401/403 credentials enter Home Assistant's reauth lifecycle."""
+@pytest.mark.parametrize("status", [401, 403])
+async def test_health_rejection_is_retryable_without_reauth(
+    hass: HomeAssistant, status: int
+) -> None:
+    """Unauthenticated health failures keep setup retryable without reauth."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="https://hermes.example.test",
+        data={CONF_URL: "https://hermes.example.test", CONF_TOKEN: "secret"},
+    )
+    entry.add_to_hass(hass)
+    client = MagicMock(spec=HermesClient)
+    client.async_health = AsyncMock(
+        side_effect=HermesProtocolError(f"GET /health returned HTTP {status}")
+    )
+    client.async_capabilities = AsyncMock()
+
+    with patch("custom_components.hermes_conversation.create_client", return_value=client):
+        assert not await hass.config_entries.async_setup(entry.entry_id)
+
+    assert entry.state is ConfigEntryState.SETUP_RETRY
+    client.async_capabilities.assert_not_awaited()
+    assert hass.config_entries.flow.async_progress_by_handler(DOMAIN) == []
+
+
+@pytest.mark.parametrize("status", [401, 403])
+async def test_capabilities_rejection_starts_reauth(hass: HomeAssistant, status: int) -> None:
+    """Authenticated capabilities failures enter Home Assistant's reauth lifecycle."""
     entry = MockConfigEntry(
         domain=DOMAIN,
         unique_id="https://hermes.example.test",
         data={CONF_URL: "https://hermes.example.test", CONF_TOKEN: "expired"},
     )
     entry.add_to_hass(hass)
+    client = MagicMock(spec=HermesClient)
+    client.async_health = AsyncMock()
+    client.async_capabilities = AsyncMock(
+        side_effect=HermesAuthenticationError(f"GET /v1/capabilities returned HTTP {status}")
+    )
 
-    with patch(
-        "custom_components.hermes_conversation.async_validate_connection",
-        new=AsyncMock(side_effect=HermesAuthenticationError("HTTP 401")),
-    ):
+    with patch("custom_components.hermes_conversation.create_client", return_value=client):
         assert not await hass.config_entries.async_setup(entry.entry_id)
 
     assert entry.state is ConfigEntryState.SETUP_ERROR

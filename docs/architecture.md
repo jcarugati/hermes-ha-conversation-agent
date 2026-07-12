@@ -12,11 +12,13 @@ import, reauthentication, and options flows.
 Every setup independently reconstructs a client from entry data and bounded
 non-secret options, injects Home Assistant's shared asynchronous HTTP session, and
 repeats health/capability validation. Unavailable endpoints raise
-`ConfigEntryNotReady`; authentication rejection raises `ConfigEntryAuthFailed` so Home
-Assistant starts reauthentication. Reload repeats setup and unload releases runtime state without
-closing the shared session. Reauthentication rotates only the token and reloads after
-validation; failure preserves the old token and performs no reload. Options contain only connect timeout, total timeout, and maximum output
-length and reload on change.
+`ConfigEntryNotReady`; this includes HTTP 401/403 from unauthenticated health.
+HTTP 401/403 from authenticated capabilities raises `ConfigEntryAuthFailed` so Home
+Assistant starts reauthentication. Reload repeats setup and unload releases runtime
+state without closing the shared session. Reauthentication rotates only the token and
+reloads after validation; failure preserves the old token and performs no reload.
+Options contain only connect timeout, total timeout, and maximum output length and
+reload on change.
 
 There is no coordinator, periodic polling, diagnostics, Conversation entity, request
 bridge, conversation state/cache, tool interface, or action path. Setup validation

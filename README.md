@@ -18,6 +18,8 @@ authenticated `responses_api` capability before saving, rotate the bearer token 
 reauthentication, change bounded non-secret request limits, reload entries, and retry
 setup when Hermes is unavailable. Every setup repeats validation and stores a client
 using Home Assistant's shared asynchronous HTTP session.
+Because `/health` is unauthenticated, any health failure remains retryable; only a
+401/403 from authenticated capabilities starts token reauthentication.
 
 Configuration is UI-only. HTTPS is the default; every user, import, reauthentication,
 and options flow involving permitted local/private HTTP requires a separate operator

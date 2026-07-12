@@ -285,7 +285,16 @@ async def test_rejects_redirects_without_following(status: int) -> None:
 
 
 @pytest.mark.parametrize("status", [401, 403])
-async def test_authenticated_rejection_has_distinct_error(status: int) -> None:
+async def test_health_rejection_is_not_an_authentication_error(status: int) -> None:
+    session = FakeSession([FakeResponse({}, status=status)])
+    client = HermesClient(session, "https://hermes.invalid", "secret")  # type: ignore[arg-type]
+    with pytest.raises(HermesProtocolError, match=f"HTTP {status}") as error:
+        await client.async_health()
+    assert not isinstance(error.value, HermesAuthenticationError)
+
+
+@pytest.mark.parametrize("status", [401, 403])
+async def test_capabilities_rejection_has_distinct_authentication_error(status: int) -> None:
     session = FakeSession([FakeResponse({}, status=status)])
     client = HermesClient(session, "https://hermes.invalid", "secret")  # type: ignore[arg-type]
     with pytest.raises(HermesAuthenticationError, match=f"HTTP {status}"):

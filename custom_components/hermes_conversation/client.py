@@ -305,7 +305,7 @@ class HermesClient:
             raise HermesClientError(f"{method} {path} request setup failed") from None
         try:
             async with request as response:
-                if response.status in {401, 403}:
+                if authenticated and response.status in {401, 403}:
                     raise HermesAuthenticationError(
                         f"{method} {path} returned HTTP {response.status}"
                     )

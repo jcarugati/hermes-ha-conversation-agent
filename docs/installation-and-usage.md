@@ -28,7 +28,8 @@ Before saving, the flow validates `GET /health` and authenticated
 `GET /v1/capabilities`, including `responses_api`, bearer-required authentication, and
 the fixed Responses endpoint advertisement. Setup repeats the same validation. If
 Hermes is unavailable, Home Assistant keeps the entry retryable instead of loading
-unvalidated runtime state.
+unvalidated runtime state. This includes HTTP 401/403 from the unauthenticated health
+endpoint. Only HTTP 401/403 from authenticated capabilities starts reauthentication.
 
 HTTPS is accepted by default. Plaintext HTTP is restricted to the documented
 local/private/Tailscale host allowlist and opens a separate acknowledgement step. User,
@@ -40,9 +41,9 @@ weaken the host allowlist.
 ## Maintain an entry
 
 - Reauthentication accepts only a replacement token, validates it against the fixed
-  endpoint, updates the entry, and reloads it. An HTTP 401 or 403 during setup starts
-  Home Assistant reauthentication. A failed replacement leaves stored data unchanged
-  and does not reload the entry.
+  endpoint, updates the entry, and reloads it. An HTTP 401 or 403 from authenticated
+  capabilities during setup starts Home Assistant reauthentication. A failed
+  replacement leaves stored data unchanged and does not reload the entry.
 - **Configure** changes connect timeout, total timeout, and maximum output characters.
   Options never expose the URL or token and automatically reload the entry when saved.
 - Reload reconstructs and revalidates a fresh client. Unload releases entry-owned
