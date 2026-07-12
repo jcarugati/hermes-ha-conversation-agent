@@ -1,147 +1,84 @@
-# Hermes Home Assistant Conversation Agent developer spike
+# Hermes Home Assistant Conversation Agent
 
-> A fixed-response developer spike that verifies one Home Assistant Conversation entity
-> API shape. It does not connect Assist, Home Assistant Voice, or Hermes Agent.
+> A secure config-entry and HTTP-client foundation. It validates Hermes configuration,
+> but does not yet connect Assist, Home Assistant Voice, or conversation requests.
 
 ## Mission
 
-The proposed project would make Hermes a **Home Assistant Conversation Agent**: Assist
-would pass a transcribed request to Hermes, and Home Assistant would speak Hermes's
-final answer. That bridge is a future goal, not functionality in this spike.
+The planned v0.1 integration will let Home Assistant Assist pass a transcribed request
+to Hermes and speak Hermes's final response. Home Assistant owns wake word, STT, TTS,
+pipelines, devices, and native automations; Hermes owns reasoning and its configured
+tools. This integration remains a thin adapter to the verified Responses API.
 
-The proposed bridge is deliberately a **thin, secure adapter**. It would not replace
-Home Assistant's STT, TTS, wake-word detection, dashboards, entity registry, or
-automation engine. Home Assistant would own the voice pipeline; Hermes would own
-reasoning and tool selection.
+## Current status
 
-## Status
+**UI-configurable foundation, not a usable Hermes conversation agent.** Home Assistant
+can create one config entry per normalized Hermes base URL, validate `/health` and the
+authenticated `responses_api` capability before saving, rotate the bearer token by
+reauthentication, change bounded non-secret request limits, reload entries, and retry
+setup when Hermes is unavailable. Every setup repeats validation and stores a client
+using Home Assistant's shared asynchronous HTTP session.
 
-**Installable developer spike, not a usable Hermes bridge.** The repository now has a
-minimal Home Assistant custom-integration package and HACS custom-repository metadata.
-It can be copied or downloaded for development and loaded from YAML, but it is not
-published, released, UI-configurable, or suitable for production use. The narrow
-Hermes Responses API has a deterministic verifier and an explicitly opt-in live test,
-but the strengthened verifier still needs a fresh live run before a minimum Hermes
-version can be pinned. The inert Home Assistant compatibility spike is implemented;
-the production Hermes bridge is not. A narrow asynchronous Hermes HTTP client is now
-available for later integration, but nothing calls it and it has no configuration or
-credential persistence.
+Configuration is UI-only. HTTPS is the default; permitted local/private HTTP requires
+a separate operator acknowledgement. Credentials stay in config-entry data, while the
+options flow contains only connect timeout, total timeout, and maximum output length.
 
-**ConversationEntity compatibility spike, not an installable bridge.** The repository
-contains one deliberately inert custom component used only to test Home Assistant's
-current entity-based Conversation API. It registers a single entity and always returns
-the same non-action-bearing reply.
+This task deliberately adds no `ConversationEntity`, request bridge, conversation
+cache, coordinator, periodic check, tool/action path, or diagnostics. Installing it
+exposes configuration only; there is no selectable Hermes agent yet. Diagnostics and
+redaction are a separate tracker task.
 
-The spike is tested against **Home Assistant Core 2026.7.1** on Python 3.14.2. The test
-starts Home Assistant, loads the custom integration through HA's integration loader,
-verifies entity registration, and sends input through HA's `async_converse` dispatcher.
-This is narrow API and package recognition evidence only; it does not establish Voice
-pipeline behavior, Hermes compatibility, or production readiness.
+The deterministic Hermes contract verifier and defensive async client cover the fixed
+`/health`, `/v1/capabilities`, and `/v1/responses` surface. The strengthened verifier
+still needs a fresh live run before a minimum Hermes version can be pinned.
 
-The initial plan records three blockers as explicit design requirements:
+## Safety boundary
 
-1. Dangerous actions must be blocked until Hermes exposes an enforceable, server-side confirmation contract—not just a prompt.
-2. v0.1 uses Hermes’s stateful `POST /v1/responses` contract with named conversations, after an automated compatibility test pins the supported Hermes version.
-3. Conversation identity, serialization, expiry, reset, and privacy boundaries must be implemented and tested before release.
+- Hermes must remain on a private LAN/Tailscale/reverse-proxy path, never the public Internet.
+- TLS verification is enabled by default. HTTP opt-in remains limited to explicit local/private host classes.
+- Home Assistant credentials, cookies, contexts, identifiers, and `ChatLog` history are never accepted by the client request interface.
+- Transcripts and bearer tokens must never be logged.
+- A voice utterance or spoken confirmation is not authentication.
+- High-impact actions remain blocked until Hermes has an enforceable server-side pending-action protocol binding exact parameters, source conversation, and expiry.
+- Dispatched requests are never automatically retried when their outcome may be unknown.
 
-Read the complete reviewed plan in [`docs/plans/2026-07-12-initial-design.md`](docs/plans/2026-07-12-initial-design.md).
+The repository also contains an inert HA-local declaration for a read-only/status
+capability. It has no execution sink and is not end-to-end enforcement. A future
+bridge requires a verified Hermes read-only/status profile at startup and every
+request/tool sink.
 
-The required request/response schema, current evidence limitations, and test commands are documented in [`docs/hermes-responses-contract.md`](docs/hermes-responses-contract.md).
+## Implemented lifecycle
 
-## Compatibility spike boundary
+- UI-only URL/token config flow with normalized URL unique ID and duplicate prevention.
+- Separate warning and affirmative acknowledgement for permitted plaintext HTTP.
+- Flow-time and setup-time health, authentication, endpoint, and capability validation.
+- Token-only reauthentication with validation and reload.
+- Non-secret bounded options with automatic reload.
+- Retryable unavailable-server setup, fresh validation on reload, and clean unload.
+- No coordinator, periodic polling, diagnostics, conversation behavior, tools, or actions.
 
-The spike has no wired Hermes connection, endpoint or token configuration,
-conversation storage, cache, TTL, locks, diagnostics, config flow, tools, or general
-bridge behavior. The standalone client validates the fixed Hermes health,
-capabilities, and Responses API surface for future callers. It does not inspect, log,
-persist, or forward the incoming
-utterance or HA `ChatLog`. Home Assistant constructs those objects as part of the
-current API call; the entity uses only the language and conversation ID needed to form
-the fixed HA response.
+## Development
 
-The repository also contains an HA-local, non-executing declaration for one explicit
-read-only/status capability. Its public API accepts no callable, operation, prompt,
-confirmation, or action parameters, and it exposes no executable action route. The
-inert entity does not use this declaration or call Hermes, so this is not end-to-end
-enforcement and is not production-ready.
+The development environment is pinned in `uv.lock` and currently exercises Home
+Assistant Core 2026.7.1.
 
-Real enforcement requires a verified Hermes read-only/status execution profile and
-integration at every future request and tool-execution sink. A future bridge must
-verify that profile at startup and request time and fail closed when it is absent,
-stale, or unverifiable. This repository has no such Hermes attestation or sink
-integration today.
-
-The client accepts only model, bounded text input, and an opaque conversation key for
-`POST /v1/responses`; it exposes no generic path, headers, tools, actions, or retry
-facility. Before every POST it performs an authenticated `GET /v1/capabilities` and
-fails closed unless the exact bearer-authenticated Responses API contract is
-advertised; capability failure dispatches no POST. Installing this component still
-exposes only the fixed-response developer entity. Do not
-install it expecting a usable Hermes conversation agent. The planned v0.1 below
-remains unimplemented.
-
-## Proposed v0.1 design
-
-```text
-Home Assistant Voice
-  → Assist STT
-  → hermes_conversation custom integration
-  → authenticated private connection
-  → Hermes API server
-  → Hermes Agent + its existing tools
-  → concise final answer
-  → Assist TTS
-  → Home Assistant Voice
+```bash
+uv sync --all-groups
+uv run pytest
+uv run ruff check .
+uv run mypy
 ```
 
-For example:
+See the [installation guide](docs/installation-and-usage.md),
+[architecture](docs/architecture.md), [security policy](SECURITY.md), and
+[Hermes contract evidence](docs/hermes-responses-contract.md).
 
-> **You:** “¿Qué luces quedaron prendidas?”  
-> **Hermes:** “Quedaron encendidas la cocina y el pasillo.”
+## Remaining v0.1 work
 
-A conversation remains scoped to its originating Assist conversation using an opaque identifier. It must never be shared across rooms/users merely because they use the same Hermes instance.
-
-## Safety model
-
-- The Hermes API is never exposed directly to the public Internet.
-- The integration uses a private LAN/Tailscale/reverse-proxy path with bearer authentication and TLS by default. Explicit plaintext opt-in is still restricted to loopback, RFC 1918, link-local, IPv6 ULA, Tailscale CGNAT addresses, or `.local`, `.home.arpa`, and `.ts.net` names.
-- Home Assistant credentials, cookies, contexts, and raw chat history are **not** forwarded to Hermes.
-- Voice text and API tokens are not logged by this integration.
-- A spoken confirmation is not authentication.
-- Until Hermes offers an auditable execution-time confirmation gate, v0.1 must not expose high-impact actions through this agent: locks, alarms, garage/doors, pet feeding, destructive tasks, or Home Assistant configuration changes.
-- An uncertain timeout never triggers an automatic retry, because an action might already have executed.
-
-See [`SECURITY.md`](SECURITY.md) for the threat model and responsible disclosure policy.
-
-## Planned capabilities for v0.1
-
-- Home Assistant/HACS-recognizable developer package in
-  `custom_components/hermes_conversation` (implemented; not published).
-- Config flow for Hermes URL and bearer token.
-- Connection/capability validation before saving configuration.
-- A current Home Assistant `ConversationEntity` implementation.
-- Hermes Responses API with opaque named conversations.
-- Spanish-first, short spoken answers.
-- Safe failures for timeout, bad auth, malformed response, unavailable endpoint, and tool errors.
-- Diagnostics redaction, test coverage, CI, HACS metadata, manual install docs, and a real Voice end-to-end test.
-
-## Documentation
-
-- [Installation and usage guide](docs/installation-and-usage.md)
-- [Architecture](docs/architecture.md)
-- [Hermes Responses API contract verifier](docs/hermes-responses-contract.md)
-- [Reviewed v0.1 design plan](docs/plans/2026-07-12-initial-design.md)
-- [Contributor and agent instructions](AGENTS.md)
-- [Security model](SECURITY.md)
-
-## Roadmap
-
-1. Validate the supported Home Assistant Conversation API and Hermes Responses API contract.
-2. Implement the component skeleton, configuration flow, secure client, and diagnostics redaction.
-3. Implement conversation processing, lifecycle controls, and safe error speech.
-4. Add contract/unit/adversarial tests plus CI and HACS validation.
-5. Perform fresh install, upgrade, rollback, and physical Home Assistant Voice end-to-end validation.
-6. Release v0.1 only after the safety and compatibility acceptance criteria pass.
+1. Run the strengthened contract verifier against a candidate Hermes release and pin compatibility from evidence.
+2. Implement diagnostics/redaction in its separate tracker task.
+3. Implement the entity-based conversation bridge, opaque conversation lifecycle, and execution-profile enforcement in separately reviewed tasks.
+4. Run HACS/Home Assistant validation, release checks, and a real Voice end-to-end test before publishing v0.1.
 
 ## License
 

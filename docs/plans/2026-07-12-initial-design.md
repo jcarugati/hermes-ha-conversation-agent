@@ -92,13 +92,24 @@ Only an allowlisted request DTO (`input`, opaque `conversation`, declared model/
   no automatic retry.
 - [x] Keep the request interface data-only with no generic paths, headers, tools, or
   action fields.
-- [ ] Wire the client into configuration and ConversationEntity lifecycle (separate
-  tracker tasks).
+- [x] Wire the client into config-entry validation and lifecycle.
+- [ ] Wire the validated client into ConversationEntity behavior (separate tracker task).
+
+### Tracker task: Implementar ciclo de vida del flujo de configuración
+
+- [x] Add a UI-only config flow with normalized URL unique IDs and duplicate prevention.
+- [x] Validate health, bearer authentication, and `responses_api` in both the flow and config-entry setup.
+- [x] Require a separate acknowledgement for allowlisted local/private plaintext HTTP.
+- [x] Add token-only reauthentication, bounded non-secret options, automatic reload, setup retry, and unload.
+- [x] Use Home Assistant's shared asynchronous HTTP session without a coordinator or periodic checks.
+- [x] Keep diagnostics/redaction, Conversation entities, request/bridge behavior, conversation state, tools, and actions outside this task.
 
 ## Implementation phases
 
 1. Repository and contributor documentation: README, AGENTS.md, security policy, architecture diagram, installation/use guide, development setup, and a detailed implementation plan.
-2. Skeleton custom component: manifest, config flow, coordinator/client, and diagnostics redaction.
+2. Skeleton custom component: manifest, config flow, and client lifecycle. Diagnostics
+   and redaction are a separate tracker task; no coordinator is required for setup-only
+   validation.
 3. Conversation bridge: async process implementation, request/response contract, context key mapping, timeouts, and fallback speech.
 4. Tests and CI: pytest test matrix against supported HA versions, lint/type checks, secret scan.
 5. Packaging/release: HACS metadata, release checklist, example reverse-proxy guidance, and a v0.1 tagged release after a real HA Voice end-to-end test.

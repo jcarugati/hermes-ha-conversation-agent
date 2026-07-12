@@ -1,33 +1,32 @@
 # Architecture
 
-## Current installable compatibility spike
+## Current config-entry foundation
 
-The code currently present is not the bridge described in the remaining sections. It
-is a deliberately minimal, YAML-loadable compatibility spike for Home Assistant Core
-2026.7.1. The versioned manifest makes the copied custom-component package
-recognizable to Home Assistant; root `hacs.json` metadata makes the repository
-recognizable as a HACS custom integration repository. Neither mechanism publishes a
-release or adds configuration behavior. During setup it adds one `ConversationEntity`
-to Home Assistant's conversation entity component. Home Assistant passes
-`ConversationInput` and creates the required `ChatLog`; the spike does not inspect,
-log, persist, or forward their transcript content. It returns a fixed `query_answer`
-with no successful or failed action targets.
+The current code is not the bridge described below. It implements a UI-only config
+flow and complete entry lifecycle around the narrow Hermes client. The user step
+normalizes a base URL, prevents duplicates by normalized URL, stores the bearer token
+in config-entry data, and validates health plus the authenticated Responses API
+capability before saving. Permitted HTTP requires a distinct acknowledgement step.
 
-The spike now contains a standalone network client with strict validation for the
-three verified Hermes endpoints, but no code instantiates or wires it. There is no
-Hermes configuration, conversation state, cache, TTL, serialization, diagnostics,
-config flow, or tool interface.
-Its HA-backed registration and `async_converse` test is evidence for this narrow API
-shape and minimal package layout only, not for production installation lifecycle,
-Assist/Voice pipelines, Hermes interoperability, or production readiness.
+Every setup independently reconstructs a client from entry data and bounded
+non-secret options, injects Home Assistant's shared asynchronous HTTP session, and
+repeats health/capability validation. Unavailable endpoints raise
+`ConfigEntryNotReady`; reload repeats setup and unload releases runtime state without
+closing the shared session. Reauthentication rotates only the token and reloads after
+validation. Options contain only connect timeout, total timeout, and maximum output
+length and reload on change.
+
+There is no coordinator, periodic polling, diagnostics, Conversation entity, request
+bridge, conversation state/cache, tool interface, or action path. Setup validation
+performs no Responses POST.
 
 The implemented `safety` module is an HA-local prototype declaration, not a production
 boundary. It contains one immutable read-only/status request type and exposes no
 executable action route. Its public API accepts no callable, utterance, operation,
 prompt, spoken confirmation, action parameters, or generic tool list.
 
-Everything below remains the planned v0.1 architecture and is not implemented by the
-spike.
+Everything below remains the planned v0.1 bridge architecture and is not implemented
+by the config-entry foundation.
 
 ## Planned v0.1 purpose
 
@@ -59,9 +58,9 @@ The implemented asynchronous client is not a general proxy. It accepts only a ba
 URL, bearer token, and explicit limits from a future caller; calls only `/health`,
 `/v1/capabilities`, and `/v1/responses`; disables redirects; uses HTTPS by default;
 and bounds payloads, output, connect time, and total time. It exposes no arbitrary
-path, header, tool, or action parameters. Home Assistant wiring and configuration do
-not yet exist. The client uses only the injected shared async session and refuses to
-dispatch if that session currently contains cookies.
+path, header, tool, or action parameters. Configuration and setup-time validation now
+exist; conversation/request wiring does not. The client uses only the injected shared
+async session and refuses to dispatch if that session currently contains cookies.
 
 Each `async_respond` validates bounded request data, then performs authenticated
 `GET /v1/capabilities`. It sends exactly one `POST /v1/responses` only when the

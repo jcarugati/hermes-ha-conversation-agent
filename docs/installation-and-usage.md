@@ -1,206 +1,68 @@
 # Installation and usage
 
-> **Current status:** the Hermes HTTP contract verifier is implemented, but its
-> strengthened checks await a fresh live run. The Home Assistant component is a
-> minimally installable, unpublished developer spike, not a Hermes bridge.
+> **Current status:** configuration lifecycle and endpoint validation are implemented,
+> but no Conversation entity or Assist/Hermes request bridge exists yet.
 
-> **Current status:** this repository contains a developer-only ConversationEntity
-> compatibility spike plus the target workflow for a future implementation. It is not
-> a Hermes bridge, is not published, and is supported only for package-recognition and
-> compatibility development.
+## Install the development integration
 
-## Developer-spike installation available now
+The repository has the standard `custom_components/hermes_conversation` package and
+HACS custom-repository metadata. It is not published as a release or default HACS
+listing.
 
-The repository has the standard `custom_components/hermes_conversation` package,
-versioned Home Assistant manifest, and root `hacs.json` metadata. HACS can recognize
-it when this repository is added as a custom integration repository; no default HACS
-store listing or release is published.
+For manual installation, copy `custom_components/hermes_conversation/` into
+`/config/custom_components/` and restart Home Assistant. Do not add YAML;
+configuration is UI-only.
 
-For either a HACS custom-repository download or a manual copy of the integration
-directory into `/config/custom_components/`, activate the inert spike in
-`configuration.yaml`:
+Go to **Settings → Devices & services → Add integration** and select **Hermes
+Conversation Agent**.
 
-```yaml
-hermes_conversation:
-```
+## Configure Hermes
 
-Restart Home Assistant. The only expected result is a
-`conversation.hermes_compatibility_spike` entity that returns a fixed non-action
-reply. There is no **Add integration** UI, URL/token setup, Hermes connection, or
-production config-entry lifecycle. Remove the YAML entry and integration directory to
-remove the spike.
+Enter a private Hermes base URL with no credentials, path, query, or fragment, plus a
+dedicated bearer token. The flow normalizes the URL and uses it as the entry's unique
+ID, so equivalent URL spellings cannot create duplicates.
 
-## Compatibility evidence available now
+Before saving, the flow validates `GET /health` and authenticated
+`GET /v1/capabilities`, including `responses_api`, bearer-required authentication, and
+the fixed Responses endpoint advertisement. Setup repeats the same validation. If
+Hermes is unavailable, Home Assistant keeps the entry retryable instead of loading
+unvalidated runtime state.
 
-The spike registers one inert conversation entity and returns a fixed reply. It has no
-Hermes connection, token or endpoint configuration, tools, conversation state, or
-config flow. It neither inspects nor forwards the utterance or Home Assistant
-`ChatLog`.
+HTTPS is accepted by default. Plaintext HTTP is restricted to the documented
+local/private/Tailscale host allowlist and opens a separate acknowledgement step. The
+warning explains that the bearer token and future request data would be visible on the
+network. Acknowledgement does not weaken the host allowlist.
 
-The automated test is pinned to Home Assistant Core 2026.7.1 and Python 3.14.2. It uses
-Home Assistant's own test harness, integration loader, entity registration, and
-`async_converse` dispatcher:
+## Maintain an entry
 
-```bash
-uv python install 3.14.2
-uv sync --python 3.14.2
-uv run --python 3.14.2 pytest
-```
+- Reauthentication accepts only a replacement token, validates it against the fixed
+  endpoint, updates the entry, and reloads it.
+- **Configure** changes connect timeout, total timeout, and maximum output characters.
+  Options never expose the URL or token and automatically reload the entry when saved.
+- Reload reconstructs and revalidates a fresh client. Unload releases entry-owned
+  runtime state without closing Home Assistant's shared HTTP session.
 
-Passing these tests demonstrates only that the fixed-reply entity matches that
-release's Conversation API and that the repository has the expected minimal HA/HACS
-layout. It does not test Assist/Voice, STT/TTS, config-entry lifecycle, Hermes, or any
-production behavior.
+## Verify configuration
 
-## Proposed v0.1 operator workflow (not implemented)
+A loaded entry proves only that the endpoint was healthy and advertised the required
+authenticated capability at setup time. It does not prove Voice, conversation, tool,
+or action behavior. There is currently no Hermes agent to select under **Settings →
+Voice assistants**.
 
-The remaining sections record a possible operator workflow for the planned v0.1.
-They are design notes, not instructions that work with this spike. The spike has no
-configuration UI, diagnostics, or production lifecycle. A developer-only HTTP client
-exists for future wiring, but the installed entity does not instantiate or call it.
+If setup is retrying:
 
-The client requires its future caller to supply Home Assistant's shared asynchronous
-HTTP session plus an already managed base URL and token. HTTPS is mandatory by
-default; plaintext HTTP requires the caller's explicit opt-in and is limited to
-loopback, RFC 1918, link-local, IPv6 ULA, Tailscale `100.64.0.0/10`, `localhost`, or
-`.local`, `.home.arpa`, and `.ts.net` hostnames. Public or unclassified HTTP hosts are
-rejected. It does not store those values or provide operator configuration.
+1. Verify private DNS/routing and TLS trust from the Home Assistant host.
+2. Verify the token against `GET /v1/capabilities` without placing it in the URL or logs.
+3. Confirm `features.responses_api` is `true` and the advertised auth/endpoint contract matches the verifier.
+4. For HTTP, confirm the host belongs to an allowed private class.
 
-The caller must inject Home Assistant's shared async HTTP session. The client creates
-no session of its own and refuses to dispatch while the injected session contains
-cookies. Before every Responses POST, it performs an authenticated capability check;
-failure or a missing `responses_api` feature sends no POST.
+Contract checks are documented in
+[`hermes-responses-contract.md`](hermes-responses-contract.md).
 
-### Proposed prerequisites
+## Deliberately excluded
 
-- A working Home Assistant installation with Assist and a configured voice pipeline.
-- For a future bridge, Hermes Agent with a configured model and a verified
-  read-only/status execution profile; arbitrary or action-bearing toolsets are outside
-  the permitted v0.1 scope.
-- Network reachability from the Home Assistant host to the Hermes API through a **private** path.
-- A dedicated bearer token for Hermes API access.
-- A Hermes Agent version that advertises and passes the committed contract verifier. No minimum version is pinned yet.
-- A supported Home Assistant release, still to be pinned by the v0.1 compatibility matrix.
-
-### 1. Enable a future Hermes API server
-
-On the Hermes host, configure the API server with a new, long random key. Keep this outside Git and do not paste it into issues/chat:
-
-```bash
-# ~/.hermes/.env
-API_SERVER_ENABLED=true
-API_SERVER_KEY=<generate-a-long-random-secret>
-```
-
-Restart Hermes Gateway. Use the base URL configured for your deployment; this repository has not verified a default bind address or port.
-
-Verify locally first:
-
-```bash
-curl "$HERMES_BASE_URL/health"
-# Expected fields: status="ok", platform="hermes-agent", non-empty version
-
-curl "$HERMES_BASE_URL/v1/capabilities" \
-  -H "Authorization: Bearer $API_SERVER_KEY"
-# Expected: auth.type="bearer", auth.required=true,
-# features.responses_api=true, and a non-empty model
-```
-
-Contributors can run the deterministic and explicitly gated live contract checks described in [`hermes-responses-contract.md`](hermes-responses-contract.md). Do not put the real token or private URL in repository files or command output.
-
-### 2. Provide private connectivity for a future bridge
-
-Home Assistant must be able to reach Hermes, but the API must not be public.
-
-Recommended patterns:
-
-- A reverse proxy reachable only on the LAN, with HTTPS/TLS.
-- A Tailscale path between Home Assistant and the Hermes host, preferably with HTTPS/TLS.
-- A firewall rule allowing the HA host only.
-
-Do **not** bind Hermes directly to a public interface or port-forward it to the Internet. Do not put the bearer token in a URL query string.
-
-The proposed config flow would require explicit acknowledgement for a trusted local
-HTTP-only network because both bearer tokens and speech text could be observed there.
-Acknowledgement would not override the local/private-host allowlist above.
-
-### 3. Possible production installation after a future release
-
-### HACS
-
-1. In HACS, install the future published **Hermes Home Assistant Conversation Agent**.
-2. Download the production release.
-3. Restart Home Assistant.
-4. Go to **Settings → Devices & services → Add integration**.
-5. Select **Hermes Conversation Agent**.
-
-### Manual installation
-
-1. Copy `custom_components/hermes_conversation/` to your Home Assistant configuration directory:
-
-   ```text
-   /config/custom_components/hermes_conversation/
-   ```
-
-2. Restart Home Assistant.
-3. Add the integration from **Settings → Devices & services**.
-
-### 4. Proposed configuration
-
-A future config flow is expected to request:
-
-- Private Hermes base URL, such as `https://hermes.home.arpa`.
-- Hermes API bearer token.
-- Optional spoken response language/length preferences.
-- Explicit acknowledgement when using plaintext HTTP.
-
-The v0.1 design requires such a flow to validate the server capabilities before saving
-and reject unsupported contracts. This behavior does not exist in the spike.
-
-### 5. Possible Assist selection after a future release
-
-1. Go to **Settings → Voice assistants**.
-2. Create or edit an assistant.
-3. Set **Conversation agent** to **Hermes Conversation Agent**.
-4. Keep your preferred STT and TTS providers unchanged.
-5. Assign the assistant to the Home Assistant Voice device.
-
-### Proposed usage
-
-Read-only/status examples for the currently permitted future scope:
-
-- “¿Qué luces quedaron prendidas?”
-- “¿Cuál es la temperatura en la oficina?”
-- “¿Qué pasó hoy en casa?”
-
-The proposed v0.1 would return answers brief enough for speech.
-
-### Required safety limitations for v0.1
-
-Until Hermes supports server-side, parameter-bound confirmation, this integration must not perform high-impact actions such as opening garages/doors, locks, alarms, pet feeding, destructive tasks, or Home Assistant configuration changes. A voice phrase such as “confirmo” is not proof of identity.
-
-The committed HA-local prototype is a non-executing read-only/status declaration. Its
-public API accepts no callable, operation, prompt, confirmation, or action parameters,
-and it exposes no executable action route.
-
-This is a local interface contract, not a usable Hermes feature or end-to-end safety
-control. The current entity returns a fixed inert response and has no network client,
-tool configuration, classifier, or Hermes execution sink. A real bridge additionally
-requires a verified Hermes read-only/status execution profile, enforcement at every
-future request and tool-execution sink, and startup plus request-time verification that
-fails closed whenever the profile is absent, stale, or unverifiable.
-
-### Proposed troubleshooting considerations
-
-These checks apply only after a production bridge implements the relevant network,
-configuration, and error-handling features; they cannot be performed against this
-spike.
-
-1. Check the Hermes API locally with `/health`.
-2. Check `GET /v1/capabilities` with bearer auth and ensure `responses_api` is present.
-3. From the Home Assistant host/network, verify DNS/routing/TLS to the private Hermes endpoint.
-4. Confirm the API token is current and is not embedded in the URL.
-5. If a future request times out after dispatch, do not repeat the action immediately.
-   The action may have completed; inspect the relevant device state first.
-6. Treat any POST HTTP error, malformed/oversized response, response-body timeout, or
-   disconnect as indeterminate for the same reason; the client sends no automatic retry.
+This implementation has no diagnostics endpoint or diagnostics redaction,
+coordinator, periodic polling, Conversation entity, utterance forwarding,
+conversation state, tool declarations, or action execution path. These require
+separate reviewed tracker tasks. No high-impact action can execute through this
+configuration-only lifecycle.

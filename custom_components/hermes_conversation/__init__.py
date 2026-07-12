@@ -1,51 +1,62 @@
-"""Minimal Home Assistant ConversationEntity compatibility spike."""
+"""Config-entry lifecycle for the Hermes Conversation integration."""
 
-from typing import Literal
+from __future__ import annotations
 
-from homeassistant.components.conversation import (
-    ChatLog,
-    ConversationEntity,
-    ConversationInput,
-    ConversationResult,
-)
-from homeassistant.components.conversation.const import DATA_COMPONENT
-from homeassistant.const import MATCH_ALL
+from typing import Any
+
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import intent
-from homeassistant.helpers.typing import ConfigType
+from homeassistant.exceptions import ConfigEntryNotReady
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-FIXED_REPLY = "Hermes compatibility spike response. No action was performed."
+from .client import HermesClient, HermesClientError
+from .const import (
+    CONF_ALLOW_INSECURE_HTTP,
+    CONF_CONNECT_TIMEOUT,
+    CONF_MAX_OUTPUT_CHARS,
+    CONF_TOKEN,
+    CONF_TOTAL_TIMEOUT,
+    CONF_URL,
+    DEFAULT_CONNECT_TIMEOUT,
+    DEFAULT_MAX_OUTPUT_CHARS,
+    DEFAULT_TOTAL_TIMEOUT,
+)
 
-
-class HermesCompatibilitySpikeEntity(ConversationEntity):
-    """Conversation entity that always returns a fixed, non-action reply."""
-
-    _attr_name = "Hermes compatibility spike"
-    _attr_unique_id = "hermes_compatibility_spike"
-
-    @property
-    def supported_languages(self) -> list[str] | Literal["*"]:
-        """Accept any language because the fixed reply does not interpret input."""
-        return MATCH_ALL
-
-    async def _async_handle_message(
-        self,
-        user_input: ConversationInput,
-        chat_log: ChatLog,
-    ) -> ConversationResult:
-        """Return fixed speech without inspecting or forwarding the conversation."""
-        del chat_log
-        response = intent.IntentResponse(language=user_input.language)
-        response.response_type = intent.IntentResponseType.QUERY_ANSWER
-        response.async_set_speech(FIXED_REPLY)
-        return ConversationResult(
-            response=response,
-            conversation_id=user_input.conversation_id,
-        )
+type HermesConfigEntry = ConfigEntry[HermesClient]
 
 
-async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
-    """Register the single spike entity with Home Assistant."""
-    del config
-    await hass.data[DATA_COMPONENT].async_add_entities([HermesCompatibilitySpikeEntity()])
+def create_client(hass: HomeAssistant, entry: ConfigEntry[Any]) -> HermesClient:
+    """Build a client exclusively from stored entry data and non-secret options."""
+    return HermesClient(
+        async_get_clientsession(hass),
+        entry.data[CONF_URL],
+        entry.data[CONF_TOKEN],
+        allow_insecure_http=entry.data.get(CONF_ALLOW_INSECURE_HTTP, False),
+        connect_timeout=entry.options.get(CONF_CONNECT_TIMEOUT, DEFAULT_CONNECT_TIMEOUT),
+        total_timeout=entry.options.get(CONF_TOTAL_TIMEOUT, DEFAULT_TOTAL_TIMEOUT),
+        max_output_chars=entry.options.get(CONF_MAX_OUTPUT_CHARS, DEFAULT_MAX_OUTPUT_CHARS),
+    )
+
+
+async def async_validate_connection(hass: HomeAssistant, client: HermesClient) -> None:
+    """Validate health, authentication, and the required Responses API capability."""
+    del hass
+    await client.async_health()
+    await client.async_capabilities()
+
+
+async def async_setup_entry(hass: HomeAssistant, entry: HermesConfigEntry) -> bool:
+    """Set up an entry only after revalidating its complete stored configuration."""
+    try:
+        client = create_client(hass, entry)
+        await async_validate_connection(hass, client)
+    except (HermesClientError, ValueError) as err:
+        raise ConfigEntryNotReady("Hermes endpoint validation failed") from err
+    entry.runtime_data = client
+    return True
+
+
+async def async_unload_entry(hass: HomeAssistant, entry: HermesConfigEntry) -> bool:
+    """Unload an entry without owning or closing Home Assistant's shared session."""
+    del hass, entry
     return True

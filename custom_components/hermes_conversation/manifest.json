@@ -1,8 +1,8 @@
 {
   "domain": "hermes_conversation",
-  "name": "Hermes Conversation Agent (Developer Spike)",
+  "name": "Hermes Conversation Agent",
   "codeowners": ["@jcarugati"],
-  "dependencies": ["conversation"],
+  "config_flow": true,
   "documentation": "https://github.com/jcarugati/hermes-ha-conversation-agent",
   "integration_type": "service",
   "issue_tracker": "https://github.com/jcarugati/hermes-ha-conversation-agent/issues",

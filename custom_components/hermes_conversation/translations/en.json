@@ -1,0 +1,43 @@
+{
+  "config": {
+    "abort": {
+      "already_configured": "This Hermes endpoint is already configured.",
+      "invalid_flow_state": "The configuration flow expired. Start again.",
+      "reauth_successful": "Authentication was updated successfully."
+    },
+    "error": {
+      "cannot_connect": "Could not validate the Hermes endpoint, credentials, and Responses API capability.",
+      "http_not_acknowledged": "You must acknowledge the plaintext HTTP risk to continue.",
+      "invalid_url": "Enter a valid HTTPS base URL, or an allowed private HTTP base URL."
+    },
+    "step": {
+      "http_acknowledgement": {
+        "data": {"acknowledge_insecure_http": "I understand that HTTP exposes the token and request data on the network"},
+        "description": "Plaintext HTTP is restricted to local/private hosts and is not encrypted. HTTPS is strongly recommended.",
+        "title": "Acknowledge insecure HTTP"
+      },
+      "reauth_confirm": {
+        "data": {"token": "Bearer token"},
+        "description": "Enter a replacement token for {name}.",
+        "title": "Update authentication"
+      },
+      "user": {
+        "data": {"token": "Bearer token", "url": "Hermes base URL"},
+        "description": "Connect to a private Hermes endpoint advertising the Responses API.",
+        "title": "Hermes Conversation Agent"
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "data": {
+          "connect_timeout": "Connect timeout (seconds)",
+          "max_output_chars": "Maximum response characters",
+          "total_timeout": "Total timeout (seconds)"
+        },
+        "title": "Hermes request limits"
+      }
+    }
+  }
+}
