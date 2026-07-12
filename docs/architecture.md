@@ -79,7 +79,7 @@ The accepted gateway server-enforces that neither tools nor MCP are available. I
 stateful named conversation history; the bridge uses an opaque conversation key, not a
 raw HA identifier. The integration does not accept a generic tool-capable Hermes server.
 
-The committed verifier obtains the request `model` from authenticated `/v1/capabilities`, requires `features.responses_api: true`, and tests state across two requests carrying the same fresh opaque `conversation`. Its strengthened checks await a fresh live run; the exact requirements and evidence limitations are in [`hermes-responses-contract.md`](hermes-responses-contract.md).
+The committed verifier obtains the request `model` from authenticated `/v1/capabilities`, requires `features.responses_api: true`, the exact no-tools/MCP policy, and tests state across two requests carrying the same fresh opaque `conversation`. It passed against the deployed private home gateway on 2026-07-12; that evidence is gateway-specific. Exact requirements and limitations are in [`hermes-responses-contract.md`](hermes-responses-contract.md).
 
 ## Conversation state
 

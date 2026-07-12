@@ -29,7 +29,7 @@ or response dispatch. This is the gateway-enforced home boundary, not a prompt c
 
 ## Proposed security requirements for the v0.1 production bridge
 
-The strengthened Hermes contract verifier has deterministic coverage but still awaits a fresh live run; no minimum Hermes version is currently claimed or pinned.
+On 2026-07-12 the strengthened verifier passed against the deployed private home gateway, including its exact no-tools/MCP policy and two-turn continuity. The evidence is specific to that gateway; no generic Hermes compatibility or minimum version is claimed or pinned.
 
 - Hermes API access over a private LAN/Tailscale/reverse-proxy route; never public Internet exposure.
 - Bearer token supplied in an HTTP Authorization header, never in a URL.

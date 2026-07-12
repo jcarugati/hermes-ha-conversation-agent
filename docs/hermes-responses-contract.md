@@ -4,7 +4,7 @@
 
 The committed verifier checks `GET /health`, authenticated `GET /v1/capabilities`, and two authenticated, non-streaming `POST /v1/responses` turns. Each run generates a fresh opaque conversation key and a separate fresh marker. Both POSTs use that run-scoped key, and continuity passes only when the second response returns exactly that run's marker.
 
-**Current evidence status:** no live-verifier environment was available during the rejected-review repair. A historical probe targeted Hermes Agent 0.18.2, but it used weaker schema and continuity checks and is not accepted as evidence for this strengthened contract. The minimum compatible Hermes version therefore remains unpinned until the committed verifier passes against a real instance. No Hermes version is currently claimed compatible.
+**Current evidence status:** on 2026-07-12 the committed strengthened verifier passed against the deployed private home gateway. The non-sensitive evidence was: Hermes Agent `0.18.2`, model `gpt-5.6-terra`, `responses_api: true`, exact no-tools/MCP policy, completed response objects, JSON media types, and two-turn opaque-conversation continuity. The private endpoint and bearer token are intentionally not recorded. This is evidence for that deployed gateway only, not compatibility certification for generic Hermes servers or a pinned minimum Hermes version.
 
 The verifier does not print its base URL, token, prompts, response text, conversation key, marker, response ID, or headers. Successful output is limited to the validated version, advertised model, status/object/capability booleans, the three fixed validated security-policy values, and response media types.
 
