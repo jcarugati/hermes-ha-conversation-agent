@@ -1,31 +1,31 @@
 # Hermes Home Assistant Conversation Agent — Initial Design Plan
 
-**Goal:** Build a Home Assistant custom integration that makes Hermes Agent available as an Assist conversation agent: spoken HA Voice requests go to Hermes, Hermes can use its existing tools (including Home Assistant controls), and Assist speaks Hermes’s concise final answer.
+> **Historical plan, updated with current v0.1 decisions.** The implemented home mode is
+> a private, server-enforced **no-tools/no-MCP** gateway. It is not a general Hermes
+> tool/control bridge; the authoritative current behavior is documented in `README.md`,
+> `SECURITY.md`, and `docs/architecture.md`.
+
+**Goal:** Make the private no-tools Hermes home gateway available as an Assist conversation agent: spoken requests receive concise text replies, with no Home Assistant control actions.
 
 ## Product outcome
 
-A user selects **Hermes** under Home Assistant’s Voice Assistant settings and can say natural Spanish commands or questions. The custom integration forwards the utterance synchronously to the Hermes API, receives a final text answer, and returns it to Assist for TTS. A unique Home Assistant conversation/device maps to an isolated Hermes conversation so follow-up requests retain useful context without mixing users or rooms.
+A user selects **Hermes** under Home Assistant’s Voice Assistant settings. The integration sends only a bounded utterance and fresh opaque conversation key to the trusted home gateway, receives final text, appends that result only to HA’s local ChatLog, and returns it for TTS. It never forwards HA conversation/device identity or inbound ChatLog.
 
 ## Scope for v0.1
 
-- A Home Assistant custom component, installable through HACS and manually.
-- UI config flow for a reachable Hermes base URL and authentication token.
-- Connectivity validation using Hermes’s authenticated health endpoint.
-- A `conversation` platform implementation that forwards Assist text to Hermes’s OpenAI-compatible API.
-- Per-conversation context continuity using a deterministic, privacy-preserving Hermes conversation key.
-- Spanish-first, concise response instructions sent to Hermes.
-- Explicit safety policy: normal home controls are allowed when unambiguous, but the proposed v0.1 production bridge must block locks, alarms, garage/door actuators, pet feeding, deletions, configuration changes, and other high-impact actions until Hermes provides a server-enforced pending-action protocol binding the action ID, exact parameters, source conversation, and expiry.
-- Timeouts, useful spoken error responses, structured logging without secrets or raw authorization values.
-- Unit tests for config validation, request construction, error handling, response parsing, and conversation-key isolation.
-- Documentation: prerequisites, network topology, secure setup, HACS/manual installation, configuration, selecting Hermes as a conversation agent, troubleshooting, and threat model.
+- HACS/manual custom component, UI config flow, private endpoint and bearer validation.
+- `conversation` platform that supports only the authenticated Responses API and the exact server-enforced no-tools/MCP capability policy.
+- Fresh opaque key per HA turn; Hermes owns only its ephemeral named-conversation state.
+- No tools, actions, prompts/instructions, Home Assistant controls, context forwarding, or confirmation-based unlocks.
+- Timeouts, bounded safe spoken failures, and no secrets/transcripts in logs.
+- Unit, dispatcher, and live private-gateway contract coverage.
 
 ## Explicit non-goals for v0.1
 
 - Do not expose Hermes directly to the public Internet.
 - Do not implement STT, TTS, wake-word, or hardware support; Home Assistant owns that pipeline.
-- Do not duplicate Home Assistant device-control logic in the integration; Hermes owns reasoning/tool selection.
-- Do not add a webhook-only async mode as the primary interaction path; the goal is synchronous spoken replies.
-- Do not treat a prompt or spoken confirmation as a safety boundary; high-impact actions remain blocked until the required server-enforced, parameter-bound pending-action protocol exists.
+- Do not enable device controls, tools, MCPs, callbacks, or high-impact actions.
+- Do not treat a prompt or spoken confirmation as a safety boundary.
 - Do not persist raw voice transcripts in the integration.
 
 ## Architecture
@@ -36,7 +36,7 @@ Home Assistant Voice / Assist
   -> hermes_conversation custom integration (Conversation Agent)
   -> authenticated private HTTP connection
   -> Hermes API server (/v1/chat/completions or /v1/responses)
-  -> Hermes Agent + existing Home Assistant tools
+  -> Hermes Agent (no tools or MCP)
   -> final text response
   -> HA Conversation response
   -> HA TTS -> voice device
@@ -61,7 +61,7 @@ The automated contract verifier defines the exact narrow `/v1/responses` request
 
 ### Conversation lifecycle
 
-The integration uses Home Assistant’s current entity-based Conversation API (`ConversationEntity`, `ConversationInput`, and `ChatLog`) and advertises only the intended `CONTROL` capability. It maps HA conversation identity to a random opaque Hermes conversation key stored locally; it does not forward raw Home Assistant conversation, device, user, or assistant identifiers. The implementation must define and test identity fallback, one in-flight request per conversation, idle expiry, a bounded active-conversation cache, restart behavior, and reset/deletion behavior.
+The integration uses Home Assistant’s current entity-based Conversation API (`ConversationEntity`, `ConversationInput`, and `ChatLog`) and advertises only the intended `CONTROL` capability. It creates a fresh random opaque Hermes key for each turn and does not forward raw Home Assistant conversation, device, user, assistant identifiers, or inbound `ChatLog`. Long-lived key mapping, per-conversation locking, idle expiry, reset, persistence, and replay behavior remain separate non-goals.
 
 ### Dangerous actions
 
