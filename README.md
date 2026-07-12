@@ -1,4 +1,4 @@
-# Home Assistant ConversationEntity compatibility spike
+# Hermes Home Assistant Conversation Agent developer spike
 
 > A fixed-response developer spike that verifies one Home Assistant Conversation entity
 > API shape. It does not connect Assist, Home Assistant Voice, or Hermes Agent.
@@ -16,7 +16,14 @@ reasoning and tool selection.
 
 ## Status
 
-**Contract validation / developer-only compatibility spike.** This repository is **not installable yet**. The narrow Hermes Responses API has a deterministic verifier and an explicitly opt-in live test, but the strengthened verifier still needs a fresh live run before a minimum Hermes version can be pinned. The inert Home Assistant compatibility spike is implemented; the production Hermes bridge is not.
+**Installable developer spike, not a usable Hermes bridge.** The repository now has a
+minimal Home Assistant custom-integration package and HACS custom-repository metadata.
+It can be copied or downloaded for development and loaded from YAML, but it is not
+published, released, UI-configurable, or suitable for production use. The narrow
+Hermes Responses API has a deterministic verifier and an explicitly opt-in live test,
+but the strengthened verifier still needs a fresh live run before a minimum Hermes
+version can be pinned. The inert Home Assistant compatibility spike is implemented;
+the production Hermes bridge is not.
 
 **ConversationEntity compatibility spike, not an installable bridge.** The repository
 contains one deliberately inert custom component used only to test Home Assistant's
@@ -26,8 +33,8 @@ the same non-action-bearing reply.
 The spike is tested against **Home Assistant Core 2026.7.1** on Python 3.14.2. The test
 starts Home Assistant, loads the custom integration through HA's integration loader,
 verifies entity registration, and sends input through HA's `async_converse` dispatcher.
-This is narrow API compatibility evidence only; it does not establish installability,
-Voice pipeline behavior, Hermes compatibility, or production readiness.
+This is narrow API and package recognition evidence only; it does not establish Voice
+pipeline behavior, Hermes compatibility, or production readiness.
 
 The initial plan records three blockers as explicit design requirements:
 
@@ -60,8 +67,9 @@ verify that profile at startup and request time and fail closed when it is absen
 stale, or unverifiable. This repository has no such Hermes attestation or sink
 integration today.
 
-Do not copy this component into a Home Assistant installation expecting a usable
-conversation agent. The planned v0.1 below remains unimplemented.
+Installing this component exposes only the fixed-response developer entity. Do not
+install it expecting a usable Hermes conversation agent. The planned v0.1 below
+remains unimplemented.
 
 ## Proposed v0.1 design
 
@@ -98,7 +106,8 @@ See [`SECURITY.md`](SECURITY.md) for the threat model and responsible disclosure
 
 ## Planned capabilities for v0.1
 
-- Home Assistant custom component in `custom_components/hermes_conversation`.
+- Home Assistant/HACS-recognizable developer package in
+  `custom_components/hermes_conversation` (implemented; not published).
 - Config flow for Hermes URL and bearer token.
 - Connection/capability validation before saving configuration.
 - A current Home Assistant `ConversationEntity` implementation.

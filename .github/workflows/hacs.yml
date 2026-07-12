@@ -1,0 +1,19 @@
+name: HACS validation
+
+on:
+  push:
+  pull_request:
+
+permissions: {}
+
+jobs:
+  validate-hacs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: HACS validation
+        uses: hacs/action@main
+        with:
+          category: integration
+          # External publishing metadata is deferred while this remains an
+          # unpublished developer skeleton; package and manifest checks stay enabled.
+          ignore: "brands topics license"

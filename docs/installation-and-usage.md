@@ -1,10 +1,34 @@
 # Installation and usage
 
-> **Current status:** the Hermes HTTP contract verifier is implemented, but its strengthened checks await a fresh live run and the Home Assistant component is not published or installable yet.
+> **Current status:** the Hermes HTTP contract verifier is implemented, but its
+> strengthened checks await a fresh live run. The Home Assistant component is a
+> minimally installable, unpublished developer spike, not a Hermes bridge.
 
 > **Current status:** this repository contains a developer-only ConversationEntity
 > compatibility spike plus the target workflow for a future implementation. It is not
-> a Hermes bridge, is not published, and is not supported for installation or use.
+> a Hermes bridge, is not published, and is supported only for package-recognition and
+> compatibility development.
+
+## Developer-spike installation available now
+
+The repository has the standard `custom_components/hermes_conversation` package,
+versioned Home Assistant manifest, and root `hacs.json` metadata. HACS can recognize
+it when this repository is added as a custom integration repository; no default HACS
+store listing or release is published.
+
+For either a HACS custom-repository download or a manual copy of the integration
+directory into `/config/custom_components/`, activate the inert spike in
+`configuration.yaml`:
+
+```yaml
+hermes_conversation:
+```
+
+Restart Home Assistant. The only expected result is a
+`conversation.hermes_compatibility_spike` entity that returns a fixed non-action
+reply. There is no **Add integration** UI, URL/token setup, Hermes connection, or
+production config-entry lifecycle. Remove the YAML entry and integration directory to
+remove the spike.
 
 ## Compatibility evidence available now
 
@@ -23,9 +47,10 @@ uv sync --python 3.14.2
 uv run --python 3.14.2 pytest
 ```
 
-Passing this test demonstrates only that the fixed-reply entity matches that release's
-Conversation API. It does not test Assist/Voice, STT/TTS, installation lifecycle,
-Hermes, or any production behavior.
+Passing these tests demonstrates only that the fixed-reply entity matches that
+release's Conversation API and that the repository has the expected minimal HA/HACS
+layout. It does not test Assist/Voice, STT/TTS, config-entry lifecycle, Hermes, or any
+production behavior.
 
 ## Proposed v0.1 operator workflow (not implemented)
 
@@ -85,12 +110,12 @@ Do **not** bind Hermes directly to a public interface or port-forward it to the 
 The proposed config flow would require explicit acknowledgement for a trusted local
 HTTP-only network because both bearer tokens and speech text could be observed there.
 
-### 3. Possible installation after a future release
+### 3. Possible production installation after a future release
 
 ### HACS
 
-1. In HACS, add this GitHub repository as a custom integration repository.
-2. Download **Hermes Home Assistant Conversation Agent**.
+1. In HACS, install the future published **Hermes Home Assistant Conversation Agent**.
+2. Download the production release.
 3. Restart Home Assistant.
 4. Go to **Settings → Devices & services → Add integration**.
 5. Select **Hermes Conversation Agent**.
