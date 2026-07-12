@@ -26,6 +26,18 @@ A model instruction such as “ask for confirmation” does not reliably protect
 
 Until Hermes provides a server-enforced confirmation API that binds a pending action ID, exact action parameters, origin conversation, and expiry, the proposed v0.1 production bridge must block high-impact actions. This includes locks, alarms, doors/garage, pet feeding, deletion/destructive commands, and Home Assistant configuration changes.
 
+The committed HA-side executable-route policy enforces this boundary without prompt
+wording. Only explicitly classified read-only/status work can invoke its callback;
+the named high-impact categories, other actions, and unclassified work raise before
+execution. Prompt injection and spoken or replayed confirmation cannot alter this API
+because it accepts neither prompt text nor confirmation state.
+
+Hermes tool profiles are external server configuration and cannot be constrained by
+this repository today. The current component therefore remains inert and sends
+nothing to Hermes. A future network bridge must use the policy interface and a
+Hermes profile independently verified to expose read-only/status capabilities only;
+absence of either condition must fail closed.
+
 ## Reporting a vulnerability
 
 Please do **not** publish credentials, tokens, voice transcripts, network addresses, or proof-of-concept details in a public GitHub issue.

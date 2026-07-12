@@ -15,6 +15,12 @@ Its HA-backed registration and `async_converse` test is evidence for this narrow
 shape only, not for installation, Assist/Voice pipelines, Hermes interoperability, or
 production readiness.
 
+The implemented `safety` module is the one production-oriented boundary retained in
+this spike. It accepts a trusted operation class and invokes a supplied route only for
+`read_only_status`. Every action-bearing class and `unclassified` raises before the
+callback is invoked. The interface accepts no utterance, prompt, confirmation, action
+parameters, or generic tool list, so none can override the decision.
+
 Everything below remains the planned v0.1 architecture and is not implemented by the
 spike.
 
@@ -80,6 +86,13 @@ The verifier does not establish Hermes retention capacity or durability. Continu
 ## High-impact actions
 
 v0.1 does not expose high-impact actions through this component until Hermes has an auditable execution-time confirmation mechanism. A model prompt or a spoken confirmation alone is insufficient. High-impact includes locks, alarms, doors/garage, feeders, destructive operations, and HA configuration changes.
+
+This repository cannot enforce which tools an independently configured Hermes server
+loads. Accordingly, v0.1 does not claim Hermes-side profile enforcement. The HA-side
+contract fails closed: future bridge code may expose only the read-only/status route,
+must classify an operation before dispatch, and must treat any unknown or
+action-bearing operation as blocked. Enabling a broader Hermes route would be a new
+security-sensitive scope requiring a verified server-enforced protocol.
 
 ## Network deployment
 

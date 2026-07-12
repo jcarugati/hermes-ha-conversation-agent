@@ -73,6 +73,14 @@ Only an allowlisted request DTO (`input`, opaque `conversation`, declared model/
 3. Implement config-entry duplicate prevention, reauthentication/token rotation, options updates, TLS failures, and endpoint-unavailable behavior.
 4. Define a future server-side confirmation capability before enabling high-impact actions.
 
+### Tracker task: Restringir herramientas y acciones sensibles
+
+- [x] Define an HA-side operation taxonomy with a distinct read-only/status class.
+- [x] Permit callback dispatch only for that read-only/status class.
+- [x] Fail closed for locks, alarms, doors/garage, pet feeding, destructive work, HA configuration, other actions, and unclassified work.
+- [x] Prove blocked classes never invoke an executable callback and that no prompt/confirmation override exists.
+- [x] Document that Hermes-side profile enforcement remains external and that the current spike has no Hermes execution route.
+
 ## Implementation phases
 
 1. Repository and contributor documentation: README, AGENTS.md, security policy, architecture diagram, installation/use guide, development setup, and a detailed implementation plan.

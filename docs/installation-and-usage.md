@@ -139,6 +139,12 @@ The proposed v0.1 would return answers brief enough for speech.
 
 Until Hermes supports server-side, parameter-bound confirmation, this integration must not perform high-impact actions such as opening garages/doors, locks, alarms, pet feeding, destructive tasks, or Home Assistant configuration changes. A voice phrase such as “confirmo” is not proof of identity.
 
+The committed HA-side policy therefore exposes only an explicit read-only/status
+route. All action-bearing and unclassified operation classes fail closed before the
+route callback runs. This is policy/interface evidence, not a usable Hermes feature:
+the current entity still returns its fixed inert response and has no network client,
+tool configuration, or natural-language classifier.
+
 ### Proposed troubleshooting considerations
 
 These checks apply only after a production bridge implements the relevant network,

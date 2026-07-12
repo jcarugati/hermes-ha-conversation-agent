@@ -48,6 +48,14 @@ utterance or HA `ChatLog`. Home Assistant constructs those objects as part of th
 current API call; the entity uses only the language and conversation ID needed to form
 the fixed HA response.
 
+The repository now also defines the v0.1 executable-route boundary. Its only
+authorizable operation class is explicit read-only/status work. Locks, alarms,
+doors/garages, pet feeding, destructive work, Home Assistant configuration, every
+other action, and unclassified work are rejected before a supplied route can run.
+There is no prompt or spoken-confirmation override. This policy is ready for a future
+bridge to consume, but the inert spike does not yet dispatch any request to it or to
+Hermes.
+
 Do not copy this component into a Home Assistant installation expecting a usable
 conversation agent. The planned v0.1 below remains unimplemented.
 

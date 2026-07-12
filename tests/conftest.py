@@ -22,6 +22,7 @@ def custom_components_path(enable_custom_integrations: None) -> Generator[None]:
     import custom_components
 
     path = str(Path(__file__).parents[1] / "custom_components")
-    custom_components.__path__.append(path)
+    original_path = custom_components.__path__
+    custom_components.__path__ = [*original_path, path]
     yield
-    custom_components.__path__.remove(path)
+    custom_components.__path__ = original_path
