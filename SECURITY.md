@@ -6,6 +6,8 @@ This project bridges spoken requests from Home Assistant Assist to an agent capa
 
 ## Supported security baseline for v0.1
 
+The strengthened Hermes contract verifier has deterministic coverage but still awaits a fresh live run; no minimum Hermes version is currently claimed or pinned.
+
 - Hermes API access over a private LAN/Tailscale/reverse-proxy route; never public Internet exposure.
 - Bearer token supplied in an HTTP Authorization header, never in a URL.
 - Normal TLS certificate validation by default; plaintext HTTP only with explicit acknowledgement.

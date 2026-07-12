@@ -44,7 +44,7 @@ Home Assistant Voice / Assist
 
 The custom component should be a thin asynchronous adapter using Home Assistant’s official Conversation platform API and its shared `aiohttp` client session. It should avoid shelling out, avoid accepting arbitrary callback URLs, and make only HTTPS requests by default. Local HTTP should require an explicit user acknowledgement because many homelabs use a trusted LAN/Tailscale path.
 
-Hermes should normally run its API server on loopback. An operator exposes it to Home Assistant only through a private reverse proxy or Tailscale/LAN route with TLS where feasible. Home Assistant stores the API token through the config-entry mechanism; it must never appear in logs, diagnostics, entity attributes, or Git history.
+An operator should expose Hermes to Home Assistant only through a private reverse proxy or Tailscale/LAN route with TLS where feasible. The contract verifier does not establish a default Hermes bind address. Home Assistant stores the API token through the config-entry mechanism; it must never appear in logs, diagnostics, entity attributes, or Git history.
 
 ## Closed v0.1 contract and safety decisions
 
@@ -52,7 +52,7 @@ Hermes should normally run its API server on loopback. An operator exposes it to
 
 v0.1 targets **`POST /v1/responses`** on a Hermes API server that advertises `responses_api: true` from `GET /v1/capabilities`. It sends a bearer token in `Authorization`, JSON content only, `stream: false`, a bounded plain-text `input`, and an opaque `conversation` key. Hermes’s current API documentation describes named conversations as the stateful mechanism; **Hermes is the only history owner**, so the HA integration does **not** include Home Assistant `ChatLog` history in requests.
 
-The automated contract test live-verified the exact narrow `/v1/responses` request/response schema and named-conversation continuity against Hermes Agent 0.18.2 on 2026-07-12. That is now the minimum Hermes contract version; earlier versions remain unverified. Deterministic fixture tests run offline, while live verification requires an explicit flag, URL, and token. The integration must fail closed for an unsupported server/capability instead of silently falling back to another endpoint. It must never automatically retry a request that may have initiated an action: a network timeout is an indeterminate result.
+The automated contract verifier defines the exact narrow `/v1/responses` request/response schema and tests named-conversation continuity with fresh run-scoped values. Its strengthened checks have not yet run against a live server, so no minimum Hermes version is pinned. Deterministic fixture tests run offline, while live verification requires an explicit flag, URL, and token. The integration must fail closed for an unsupported server/capability instead of silently falling back to another endpoint. It must never automatically retry a request that may have initiated an action: a network timeout is an indeterminate result.
 
 ### Conversation lifecycle
 
@@ -69,7 +69,7 @@ Only an allowlisted request DTO (`input`, opaque `conversation`, declared model/
 ## Remaining validation items
 
 1. Pin the minimum Home Assistant version after compiling/running against its current Conversation entity API and testing setup/unload/reload registration.
-2. ~~Confirm Hermes’s `/v1/responses` schema and model identifier with an automated contract test against the minimum Hermes version.~~ Completed against Hermes Agent 0.18.2; see `docs/hermes-responses-contract.md`.
+2. Confirm Hermes’s `/v1/responses` schema and model identifier by running the strengthened automated contract verifier against the candidate minimum Hermes version; see `docs/hermes-responses-contract.md`.
 3. Implement config-entry duplicate prevention, reauthentication/token rotation, options updates, TLS failures, and endpoint-unavailable behavior.
 4. Define a future server-side confirmation capability before enabling high-impact actions.
 

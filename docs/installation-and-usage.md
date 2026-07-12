@@ -1,6 +1,6 @@
 # Installation and usage
 
-> **Current status:** the Hermes HTTP contract is verified, but the Home Assistant component is not published or installable yet.
+> **Current status:** the Hermes HTTP contract verifier is implemented, but its strengthened checks await a fresh live run and the Home Assistant component is not published or installable yet.
 
 ## Prerequisites
 
@@ -8,7 +8,7 @@
 - Hermes Agent with a configured model and any desired toolsets.
 - Network reachability from the Home Assistant host to the Hermes API through a **private** path.
 - A dedicated bearer token for Hermes API access.
-- Hermes Agent 0.18.2 at the verified contract baseline. Earlier versions are unsupported; later versions must still advertise and pass the contract rather than being assumed compatible.
+- A Hermes Agent version that advertises and passes the committed contract verifier. No minimum version is pinned yet.
 - A supported Home Assistant release, still to be pinned by the v0.1 compatibility matrix.
 
 ## 1. Enable Hermes API server
@@ -21,15 +21,15 @@ API_SERVER_ENABLED=true
 API_SERVER_KEY=<generate-a-long-random-secret>
 ```
 
-Restart Hermes Gateway. Hermes documents its API server on loopback at `http://127.0.0.1:8642` by default.
+Restart Hermes Gateway. Use the base URL configured for your deployment; this repository has not verified a default bind address or port.
 
 Verify locally first:
 
 ```bash
-curl http://127.0.0.1:8642/health
+curl "$HERMES_BASE_URL/health"
 # Expected fields: status="ok", platform="hermes-agent", non-empty version
 
-curl http://127.0.0.1:8642/v1/capabilities \
+curl "$HERMES_BASE_URL/v1/capabilities" \
   -H "Authorization: Bearer $API_SERVER_KEY"
 # Expected: auth.type="bearer", auth.required=true,
 # features.responses_api=true, and a non-empty model

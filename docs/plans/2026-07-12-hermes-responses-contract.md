@@ -45,9 +45,9 @@
 - Consumes: `python -m tools.hermes_contract` with explicit live-test environment variables.
 - Produces: evidence-backed contract matrix and documented unknowns.
 
-- [x] Run the verifier against the reachable local Hermes server using an in-process credential lookup that never emits the credential.
-- [x] Record only observed status codes, content types, schema fields, advertised model/capability, safe request options, errors proven by deterministic tests or upstream source, limits proven by upstream source, and the observed Hermes version.
-- [x] Mark the minimum supported Hermes version as the lowest live-verified version, without inferring compatibility with earlier tags.
+- [ ] Run the strengthened verifier against a reachable Hermes server without emitting the credential (blocked in the review-fix session because the opt-in live environment was unavailable).
+- [x] Document only behavior exercised by the committed verifier; remove historical error, limit, header, model-value, and source-inspection assertions.
+- [ ] Mark the minimum supported Hermes version only after the strengthened committed verifier passes live.
 - [x] Update user, setup, architecture, security-status, and implementation-plan statements affected by the evidence.
 - [x] Run all available tests/checks, inspect `git diff --check`, the full diff, and repository status.
 - [x] Commit only this task with `test: validate Hermes Responses API contract`.
