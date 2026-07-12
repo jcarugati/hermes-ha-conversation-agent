@@ -6,7 +6,7 @@ The committed verifier checks `GET /health`, authenticated `GET /v1/capabilities
 
 **Current evidence status:** no live-verifier environment was available during the rejected-review repair. A historical probe targeted Hermes Agent 0.18.2, but it used weaker schema and continuity checks and is not accepted as evidence for this strengthened contract. The minimum compatible Hermes version therefore remains unpinned until the committed verifier passes against a real instance. No Hermes version is currently claimed compatible.
 
-The verifier does not print its base URL, token, prompts, response text, conversation key, marker, response ID, or headers. Successful output is limited to the validated version, advertised model, status/object/capability booleans, and response media types.
+The verifier does not print its base URL, token, prompts, response text, conversation key, marker, response ID, or headers. Successful output is limited to the validated version, advertised model, status/object/capability booleans, the three fixed validated security-policy values, and response media types.
 
 ## Required HTTP surface
 

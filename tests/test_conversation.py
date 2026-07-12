@@ -6,6 +6,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from homeassistant.components import conversation
+from homeassistant.components.conversation import chat_log as chat_log_module
+from homeassistant.components.conversation.chat_log import (
+    AssistantContent,
+    SystemContent,
+    UserContent,
+)
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import Context, HomeAssistant
 from homeassistant.helpers import entity_registry as er
@@ -125,6 +131,40 @@ async def test_dispatcher_sends_only_allowlisted_dto_and_returns_spoken_text(
         "context",
     ):
         assert forbidden not in serialized
+
+
+async def test_dispatcher_completes_local_chat_log_without_forwarding_it(
+    hass: HomeAssistant,
+) -> None:
+    """HA retains only its local turn while Hermes receives the allowlisted DTO."""
+    async with _loaded_entity(hass) as (_entry_value, client, entity_id):
+        await _converse(
+            hass,
+            entity_id,
+            text="entrada privada de HA",
+            conversation_id="local-chat-log",
+        )
+
+        stored = hass.data[chat_log_module.DATA_CHAT_LOGS]["local-chat-log"]
+        system_content, user_content, assistant_content = stored.content
+        assert isinstance(system_content, SystemContent)
+        assert isinstance(user_content, UserContent)
+        assert isinstance(assistant_content, AssistantContent)
+        assert [
+            (system_content.role, system_content.content),
+            (user_content.role, user_content.content),
+            (assistant_content.role, assistant_content.content),
+        ] == [
+            ("system", ""),
+            ("user", "entrada privada de HA"),
+            ("assistant", "Respuesta breve"),
+        ]
+        assert assistant_content.agent_id == entity_id
+
+    request = client.async_respond.await_args.kwargs
+    assert set(request) == {"model", "utterance", "conversation"}
+    assert "Respuesta breve" not in repr(request)
+    assert "local-chat-log" not in repr(request)
 
 
 async def test_entries_are_isolated_and_each_register_exactly_one_entity(

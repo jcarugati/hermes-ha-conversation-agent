@@ -11,8 +11,10 @@ The current integration stores a Hermes URL and bearer token through Home Assist
 UI config-entry mechanism, validates health/authenticated capabilities in both the
 flow and setup, and registers one official Conversation entity per validated entry.
 The entity sends only a bounded utterance, validated model, and fresh opaque key and
-returns bounded final text. It never forwards `ChatLog`, HA context, device/user IDs,
-extra system prompts, or credentials.
+returns bounded final text. It never reads or forwards inbound `ChatLog`, HA context,
+device/user IDs, extra system prompts, or credentials. It adds only Hermes's bounded
+assistant result to HA's local `ChatLog` to complete the official dispatcher lifecycle;
+that local content is not added to the client DTO.
 Diagnostics and diagnostics redaction are explicitly excluded from this tracker task.
 The client and lifecycle never log requests, URLs, transcripts, or tokens.
 HTTP 401/403 responses have a dedicated sanitized error path that starts Home

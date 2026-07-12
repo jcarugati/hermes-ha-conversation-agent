@@ -39,6 +39,11 @@ class _HermesFixture(BaseHTTPRequestHandler):
     post_count = 0
     markers: dict[str, str] = {}
     reuse_response_id = False
+    security: object = {
+        "tool_policy": "none",
+        "mcp_policy": "none",
+        "server_enforced": True,
+    }
 
     def log_message(self, format: str, *args: object) -> None:
         """Keep deterministic tests silent."""
@@ -84,6 +89,7 @@ class _HermesFixture(BaseHTTPRequestHandler):
                     "auth": {"type": "bearer", "required": True},
                     "features": {"responses_api": True},
                     "endpoints": {"responses": {"method": "POST", "path": "/v1/responses"}},
+                    "security": self.security,
                 },
             )
         else:
@@ -130,6 +136,11 @@ class ContractTest(unittest.TestCase):
         _HermesFixture.post_count = 0
         _HermesFixture.markers = {}
         _HermesFixture.reuse_response_id = False
+        _HermesFixture.security = {
+            "tool_policy": "none",
+            "mcp_policy": "none",
+            "server_enforced": True,
+        }
         self.server = ThreadingHTTPServer(("127.0.0.1", 0), _HermesFixture)
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         self.thread.start()
@@ -152,6 +163,9 @@ class ContractTest(unittest.TestCase):
         self.assertEqual(evidence.model, "fixture-model")
         self.assertEqual(evidence.response_status, "completed")
         self.assertTrue(evidence.conversation_continuity)
+        self.assertEqual(evidence.tool_policy, "none")
+        self.assertEqual(evidence.mcp_policy, "none")
+        self.assertTrue(evidence.server_enforced)
         self.assertEqual(
             [request["path"] for request in _HermesFixture.requests],
             ["/health", "/v1/capabilities", "/v1/responses", "/v1/responses"],
@@ -266,6 +280,41 @@ class ContractTest(unittest.TestCase):
             with self.assertRaisesRegex(ContractError, "responses endpoint"):
                 verify_contract(self.base_url, "fixture-secret")
         self.assertEqual(len(_HermesFixture.requests), 2)
+
+    @pytest.mark.allow_hosts(["127.0.0.1"])
+    def test_rejects_any_non_exact_security_policy_before_post(self) -> None:
+        policies: tuple[tuple[str, object], ...] = (
+            ("missing", None),
+            ("missing key", {"tool_policy": "none", "mcp_policy": "none"}),
+            (
+                "mismatched value",
+                {
+                    "tool_policy": "read_only",
+                    "mcp_policy": "none",
+                    "server_enforced": True,
+                },
+            ),
+            (
+                "extended",
+                {
+                    "tool_policy": "none",
+                    "mcp_policy": "none",
+                    "server_enforced": True,
+                    "prompt_policy": "none",
+                },
+            ),
+        )
+        for label, policy in policies:
+            with self.subTest(label=label):
+                _HermesFixture.requests = []
+                _HermesFixture.post_count = 0
+                _HermesFixture.security = policy
+                with self.assertRaisesRegex(ContractError, "security policy"):
+                    verify_contract(self.base_url, "fixture-secret")
+                self.assertEqual(
+                    [request["path"] for request in _HermesFixture.requests],
+                    ["/health", "/v1/capabilities"],
+                )
 
     @pytest.mark.allow_hosts(["127.0.0.1"])
     def test_rejects_text_without_explicit_output_text_structure(self) -> None:
@@ -506,6 +555,9 @@ class LiveContractTest(unittest.TestCase):
         self.assertTrue(evidence.hermes_version)
         self.assertTrue(evidence.model)
         self.assertEqual(evidence.response_status, "completed")
+        self.assertEqual(evidence.tool_policy, "none")
+        self.assertEqual(evidence.mcp_policy, "none")
+        self.assertTrue(evidence.server_enforced)
 
 
 if __name__ == "__main__":

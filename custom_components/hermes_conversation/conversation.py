@@ -60,7 +60,6 @@ class HermesConversationEntity(conversation.ConversationEntity):
         chat_log: conversation.ChatLog,
     ) -> conversation.ConversationResult:
         """Submit only allowlisted request fields and return final speech."""
-        del chat_log
         response = intent.IntentResponse(language=user_input.language)
         try:
             result = await self._entry.runtime_data.client.async_respond(
@@ -78,6 +77,9 @@ class HermesConversationEntity(conversation.ConversationEntity):
         except ValueError:
             response.async_set_error(intent.IntentResponseErrorCode.UNKNOWN, _INVALID_ERROR)
         else:
+            chat_log.async_add_assistant_content_without_tools(
+                conversation.AssistantContent(agent_id=self.entity_id, content=result.text)
+            )
             response.async_set_speech(result.text)
         return conversation.ConversationResult(
             response=response,

@@ -4,7 +4,7 @@
 
 **Goal:** Connect one official Home Assistant `ConversationEntity` per validated Hermes config entry to the existing allowlisted `HermesClient.async_respond` API.
 
-**Architecture:** Setup retains the validated model with the entry-owned client, then forwards the entry to the conversation entity platform. Each entity sends only bounded input text, that model, and a fresh opaque conversation key; it ignores `ChatLog` and every other Home Assistant input field and returns either final speech or a sanitized HA conversation error.
+**Architecture:** Setup retains the validated model with the entry-owned client, then forwards the entry to the conversation entity platform. Each entity sends only bounded input text, that model, and a fresh opaque conversation key; it ignores inbound `ChatLog` and every other Home Assistant input field, adds only the bounded returned assistant text to HA's local `ChatLog` through the official no-tools API, and returns either final speech or a sanitized HA conversation error.
 
 **Tech Stack:** Python 3.14, Home Assistant 2026.7 entity-based Conversation API, pytest-homeassistant-custom-component, Ruff, mypy.
 
@@ -20,6 +20,7 @@
 
 - [ ] Write failing tests that load real config entries and call `conversation.async_converse` against their registered entity IDs.
 - [ ] Prove the fake client's call contains only `model`, `utterance`, and opaque `conversation` keyword arguments and excludes ChatLog, context, device, user, credentials, tools, and actions.
+- [ ] Prove the real dispatcher completes HA's local `ChatLog` with only the bounded returned assistant text and that local content never enters the Hermes DTO.
 - [ ] Prove final speech, sanitized failure categories, no retry, authentication reauth, entry isolation, and unload/reload registration behavior.
 - [ ] Run `uv run pytest tests/test_conversation.py -q` and confirm failures are caused by the missing platform/entity bridge.
 - [ ] Implement the minimum runtime-data, platform forwarding, entity registration, request, and error mapping needed to pass.

@@ -61,8 +61,10 @@ concise final text is spoken. This validates the Conversation dispatcher path, n
 full wake-word/STT/TTS Voice end-to-end test.
 
 Each turn sends only the utterance, setup-validated model, and a fresh opaque
-conversation key. The bridge does not send `ChatLog`, HA context, device/user IDs,
-extra system prompts, credentials, tools, or actions. A request-time authentication
+conversation key. The bridge does not read or send inbound `ChatLog`, HA context,
+device/user IDs, extra system prompts, credentials, tools, or actions. Once Hermes
+returns, the bridge records only its bounded assistant text in HA's local `ChatLog`
+using the official no-tools completion API. A request-time authentication
 failure starts reauthentication. Other failures return fixed sanitized conversation
 errors; an indeterminate dispatched POST is never retried and instructs the operator
 to inspect state before trying again.

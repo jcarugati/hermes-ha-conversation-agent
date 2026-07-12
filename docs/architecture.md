@@ -88,7 +88,11 @@ it never derives a Hermes key from the incoming HA conversation, user, device, o
 entry identifier. Mapping, same-key serialization, idle expiry, bounded caching,
 reset, persistence, and replay behavior remain separate tracker tasks.
 
-Only Hermes holds dialogue history. The HA `ChatLog` is not sent to avoid duplicating turns and leaking more transcript context than necessary.
+Only Hermes holds the history used as model input. The entity neither reads nor sends
+inbound HA `ChatLog` content, avoiding duplicated turns and excess transcript exposure.
+To complete Home Assistant's official dispatcher lifecycle, it adds only Hermes's
+already-bounded returned assistant text to the local `ChatLog` via the no-tools API;
+that local completion is never copied into the Hermes request DTO.
 
 The verifier does not establish Hermes retention capacity or durability. Continuity is useful state, not assumed durable storage. A missing/forgotten conversation must fail safely or begin fresh without mixing keys.
 

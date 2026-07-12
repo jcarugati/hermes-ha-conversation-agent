@@ -30,14 +30,18 @@ options flow contains only connect timeout, total timeout, and maximum output le
 
 For each dispatcher turn, the entity sends only the bounded utterance, setup-validated
 model, and a fresh opaque conversation key to the client's fixed non-streaming
-Responses API. It ignores HA `ChatLog` history and all context, device, user, system
-prompt, and credential fields. It returns only Hermes's bounded final text for speech.
+Responses API. It does not read or forward inbound HA `ChatLog` history or any context,
+device, user, system-prompt, or credential fields. After Hermes returns, it adds only
+the bounded assistant text to HA's local `ChatLog` through the official no-tools API
+and returns that same text for speech.
 This mode is intentionally incompatible with a generic remote Hermes server: authenticated
 `GET /v1/capabilities` must contain exactly `security: {"tool_policy":"none",
 "mcp_policy":"none","server_enforced":true}`. Missing, mismatched, or extended policy
 objects fail closed during configuration, setup, and every pre-send capability check.
 
-The deterministic Hermes contract verifier and defensive async client cover the fixed
+The deterministic Hermes contract verifier requires the same exact security object
+before its first POST, and its successful evidence contains only sanitized validated
+policy values. Together with the defensive async client, it covers the fixed
 `/health`, `/v1/capabilities`, and `/v1/responses` surface. The strengthened verifier
 still needs a fresh live run before a minimum Hermes version can be pinned.
 
