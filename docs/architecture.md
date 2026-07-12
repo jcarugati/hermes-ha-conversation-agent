@@ -62,8 +62,8 @@ The implemented asynchronous client is not a general proxy. It accepts only a ba
 URL, bearer token, and explicit limits from the entity caller; calls only `/health`,
 `/v1/capabilities`, and `/v1/responses`; disables redirects; uses HTTPS by default;
 and bounds payloads, output, connect time, and total time. It exposes no arbitrary
-path, header, tool, or action parameters. Configuration and setup-time validation now
-exist; conversation/request wiring does not. The client uses only the injected shared
+path, header, tool, or action parameters. Configuration, setup-time validation, and the
+ConversationEntity request/response wiring now exist. The client uses only the injected shared
 async session and refuses to dispatch if that session currently contains cookies.
 
 Each `async_respond` validates bounded request data, then performs authenticated

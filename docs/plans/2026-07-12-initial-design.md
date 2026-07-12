@@ -57,7 +57,7 @@ remote Hermes servers are outside scope. The bridge sends a bearer token in
 `Authorization`, JSON content only, `stream: false`, a bounded plain-text `input`, and an
 opaque `conversation` key. Hermes is the only history owner, so HA `ChatLog` is omitted.
 
-The automated contract verifier defines the exact narrow `/v1/responses` request/response schema and tests named-conversation continuity with fresh run-scoped values. Its strengthened checks have not yet run against a live server, so no minimum Hermes version is pinned. Deterministic fixture tests run offline, while live verification requires an explicit flag, URL, and token. The integration must fail closed for an unsupported server/capability instead of silently falling back to another endpoint. It must never automatically retry a request that may have initiated an action: a network timeout is an indeterminate result.
+The automated contract verifier defines the exact narrow `/v1/responses` request/response schema and tests named-conversation continuity with fresh run-scoped values. Its strengthened checks passed against the deployed private home gateway on 2026-07-12; the evidence is gateway-specific, so no generic Hermes compatibility or minimum version is pinned. Deterministic fixture tests run offline, while live verification requires an explicit flag, URL, and token. The integration must fail closed for an unsupported server/capability instead of silently falling back to another endpoint. It must never automatically retry a request that may have initiated an action: a network timeout is an indeterminate result.
 
 ### Conversation lifecycle
 
