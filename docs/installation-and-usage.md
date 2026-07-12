@@ -1,7 +1,7 @@
 # Installation and usage
 
-> **Current status:** configuration lifecycle and endpoint validation are implemented,
-> but no Conversation entity or Assist/Hermes request bridge exists yet.
+> **Current status:** each loaded, validated entry registers one selectable Conversation
+> entity and forwards one bounded final-response request per Home Assistant turn.
 
 ## Install the development integration
 
@@ -51,10 +51,17 @@ weaken the host allowlist.
 
 ## Verify configuration
 
-A loaded entry proves only that the endpoint was healthy and advertised the required
-authenticated capability at setup time. It does not prove Voice, conversation, tool,
-or action behavior. There is currently no Hermes agent to select under **Settings →
-Voice assistants**.
+A loaded entry exposes one Hermes agent under **Settings → Voice assistants**. Select
+it in an Assist pipeline, submit a short test utterance, and verify that Hermes's
+concise final text is spoken. This validates the Conversation dispatcher path, not a
+full wake-word/STT/TTS Voice end-to-end test.
+
+Each turn sends only the utterance, setup-validated model, and a fresh opaque
+conversation key. The bridge does not send `ChatLog`, HA context, device/user IDs,
+extra system prompts, credentials, tools, or actions. A request-time authentication
+failure starts reauthentication. Other failures return fixed sanitized conversation
+errors; an indeterminate dispatched POST is never retried and instructs the operator
+to inspect state before trying again.
 
 If setup is retrying:
 
@@ -68,8 +75,6 @@ Contract checks are documented in
 
 ## Deliberately excluded
 
-This implementation has no diagnostics endpoint or diagnostics redaction,
-coordinator, periodic polling, Conversation entity, utterance forwarding,
-conversation state, tool declarations, or action execution path. These require
-separate reviewed tracker tasks. No high-impact action can execute through this
-configuration-only lifecycle.
+This implementation has no diagnostics, coordinator, periodic polling, conversation
+locks/cache/TTL/persistence/replay, voice end-to-end support, tool declarations,
+action execution path, or confirmation unlock. These remain separate tracker tasks.

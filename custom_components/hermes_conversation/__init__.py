@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-from .client import HermesAuthenticationError, HermesClient, HermesClientError
+from .client import HermesAuthenticationError, HermesCapabilities, HermesClient, HermesClientError
 from .const import (
     CONF_ALLOW_INSECURE_HTTP,
     CONF_CONNECT_TIMEOUT,
@@ -22,7 +24,18 @@ from .const import (
     DEFAULT_TOTAL_TIMEOUT,
 )
 
-type HermesConfigEntry = ConfigEntry[HermesClient]
+PLATFORMS = (Platform.CONVERSATION,)
+
+
+@dataclass(frozen=True, slots=True)
+class HermesRuntimeData:
+    """Entry-owned validated request dependencies."""
+
+    client: HermesClient
+    model: str
+
+
+type HermesConfigEntry = ConfigEntry[HermesRuntimeData]
 
 
 def create_client(hass: HomeAssistant, entry: ConfigEntry[Any]) -> HermesClient:
@@ -38,27 +51,29 @@ def create_client(hass: HomeAssistant, entry: ConfigEntry[Any]) -> HermesClient:
     )
 
 
-async def async_validate_connection(hass: HomeAssistant, client: HermesClient) -> None:
+async def async_validate_connection(
+    hass: HomeAssistant, client: HermesClient
+) -> HermesCapabilities:
     """Validate health, authentication, and the required Responses API capability."""
     del hass
     await client.async_health()
-    await client.async_capabilities()
+    return await client.async_capabilities()
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: HermesConfigEntry) -> bool:
     """Set up an entry only after revalidating its complete stored configuration."""
     try:
         client = create_client(hass, entry)
-        await async_validate_connection(hass, client)
+        capabilities = await async_validate_connection(hass, client)
     except HermesAuthenticationError as err:
         raise ConfigEntryAuthFailed("Hermes rejected stored authentication") from err
     except (HermesClientError, ValueError) as err:
         raise ConfigEntryNotReady("Hermes endpoint validation failed") from err
-    entry.runtime_data = client
+    entry.runtime_data = HermesRuntimeData(client=client, model=capabilities.model)
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: HermesConfigEntry) -> bool:
     """Unload an entry without owning or closing Home Assistant's shared session."""
-    del hass, entry
-    return True
+    return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)

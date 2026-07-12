@@ -1,7 +1,7 @@
 # Hermes Home Assistant Conversation Agent
 
-> A secure config-entry and HTTP-client foundation. It validates Hermes configuration,
-> but does not yet connect Assist, Home Assistant Voice, or conversation requests.
+> A secure, thin Home Assistant Conversation entity that sends final-response requests
+> to one validated Hermes endpoint per config entry.
 
 ## Mission
 
@@ -12,12 +12,13 @@ tools. This integration remains a thin adapter to the verified Responses API.
 
 ## Current status
 
-**UI-configurable foundation, not a usable Hermes conversation agent.** Home Assistant
+**UI-configurable Hermes conversation agent.** Home Assistant
 can create one config entry per canonical Hermes endpoint identity, validate `/health` and the
 authenticated `responses_api` capability before saving, rotate the bearer token by
 reauthentication, change bounded non-secret request limits, reload entries, and retry
-setup when Hermes is unavailable. Every setup repeats validation and stores a client
-using Home Assistant's shared asynchronous HTTP session.
+setup when Hermes is unavailable. Every setup repeats validation, stores the client
+and validated model, and registers exactly one official Conversation entity using
+Home Assistant's shared asynchronous HTTP session.
 Because `/health` is unauthenticated, any health failure remains retryable; only a
 401/403 from authenticated capabilities starts token reauthentication.
 
@@ -26,10 +27,10 @@ and options flow involving permitted local/private HTTP requires a separate oper
 acknowledgement. Credentials stay in config-entry data, while the
 options flow contains only connect timeout, total timeout, and maximum output length.
 
-This task deliberately adds no `ConversationEntity`, request bridge, conversation
-cache, coordinator, periodic check, tool/action path, or diagnostics. Installing it
-exposes configuration only; there is no selectable Hermes agent yet. Diagnostics and
-redaction are a separate tracker task.
+For each dispatcher turn, the entity sends only the bounded utterance, setup-validated
+model, and a fresh opaque conversation key to the client's fixed non-streaming
+Responses API. It ignores HA `ChatLog` history and all context, device, user, system
+prompt, and credential fields. It returns only Hermes's bounded final text for speech.
 
 The deterministic Hermes contract verifier and defensive async client cover the fixed
 `/health`, `/v1/capabilities`, and `/v1/responses` surface. The strengthened verifier
@@ -45,10 +46,9 @@ still needs a fresh live run before a minimum Hermes version can be pinned.
 - High-impact actions remain blocked until Hermes has an enforceable server-side pending-action protocol binding exact parameters, source conversation, and expiry.
 - Dispatched requests are never automatically retried when their outcome may be unknown.
 
-The repository also contains an inert HA-local declaration for a read-only/status
-capability. It has no execution sink and is not end-to-end enforcement. A future
-bridge requires a verified Hermes read-only/status profile at startup and every
-request/tool sink.
+The bridge exposes no tool/action request fields or execution callbacks. The inert,
+data-only `safety.py` declaration remains unchanged; it is not an execution sink or an
+end-to-end attestation of independently configured Hermes tools.
 
 ## Implemented lifecycle
 
@@ -59,7 +59,9 @@ request/tool sink.
 - Token-only reauthentication with validation and reload; setup-time 401/403 starts reauth.
 - Non-secret bounded options with automatic reload.
 - Retryable unavailable-server setup, fresh validation on reload, and clean unload.
-- No coordinator, periodic polling, diagnostics, conversation behavior, tools, or actions.
+- One official Conversation entity per loaded entry, with clean unload/reload behavior.
+- Sanitized availability, authentication, invalid-request, and indeterminate-result errors.
+- No coordinator, periodic polling, diagnostics, tools, actions, or confirmation unlock.
 
 ## Development
 
@@ -81,7 +83,7 @@ See the [installation guide](docs/installation-and-usage.md),
 
 1. Run the strengthened contract verifier against a candidate Hermes release and pin compatibility from evidence.
 2. Implement diagnostics/redaction in its separate tracker task.
-3. Implement the entity-based conversation bridge, opaque conversation lifecycle, and execution-profile enforcement in separately reviewed tasks.
+3. Implement conversation locking/cache/TTL/reset/persistence and execution-profile enforcement in separately reviewed tasks.
 4. Run HACS/Home Assistant validation, release checks, and a real Voice end-to-end test before publishing v0.1.
 
 ## License

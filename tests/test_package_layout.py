@@ -25,6 +25,7 @@ def test_home_assistant_package_has_installable_manifest() -> None:
         "name": "Hermes Conversation Agent",
         "codeowners": ["@jcarugati"],
         "config_flow": True,
+        "dependencies": ["conversation"],
         "documentation": "https://github.com/jcarugati/hermes-ha-conversation-agent",
         "integration_type": "service",
         "issue_tracker": "https://github.com/jcarugati/hermes-ha-conversation-agent/issues",
@@ -39,16 +40,16 @@ def test_hacs_repository_metadata_points_to_integration_package() -> None:
     }
 
 
-def test_lifecycle_scope_does_not_scaffold_out_of_scope_runtime_features() -> None:
-    """Install metadata enables config while excluding runtime bridges and diagnostics."""
+def test_bridge_scope_excludes_out_of_scope_runtime_features() -> None:
+    """Install metadata enables conversation while excluding later runtime tasks."""
     manifest = _json_object(INTEGRATION / "manifest.json")
     assert manifest["config_flow"] is True
     assert "requirements" not in manifest
 
     excluded_modules = {
         "diagnostics.py",
-        "conversation.py",
         "conversation_cache.py",
         "webhook.py",
     }
     assert excluded_modules.isdisjoint(path.name for path in INTEGRATION.iterdir())
+    assert (INTEGRATION / "conversation.py").is_file()

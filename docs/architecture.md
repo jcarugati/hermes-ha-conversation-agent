@@ -1,9 +1,9 @@
 # Architecture
 
-## Current config-entry foundation
+## Current conversation bridge
 
-The current code is not the bridge described below. It implements a UI-only config
-flow and complete entry lifecycle around the narrow Hermes client. Credential flows
+The current code implements a UI config flow, complete entry lifecycle, and one
+official Conversation entity per validated entry around the narrow Hermes client. Credential flows
 canonicalize a base URL, atomically prevent duplicates by canonical identity, store the bearer token
 in config-entry data, and validates health plus the authenticated Responses API
 capability before saving. Permitted HTTP requires a distinct acknowledgement in user,
@@ -20,19 +20,20 @@ reloads after validation; failure preserves the old token and performs no reload
 Options contain only connect timeout, total timeout, and maximum output length and
 reload on change.
 
-There is no coordinator, periodic polling, diagnostics, Conversation entity, request
-bridge, conversation state/cache, tool interface, or action path. Setup validation
-performs no Responses POST.
+Setup validation performs no Responses POST. After validation, runtime data retains
+only the client and advertised model and forwards the entry to the Conversation
+platform. Unload removes the platform instance; reload validates and creates one fresh
+instance without doubling entities.
 
 The implemented `safety` module is an HA-local prototype declaration, not a production
 boundary. It contains one immutable read-only/status request type and exposes no
 executable action route. Its public API accepts no callable, utterance, operation,
 prompt, spoken confirmation, action parameters, or generic tool list.
 
-Everything below remains the planned v0.1 bridge architecture and is not implemented
-by the config-entry foundation.
+There is no coordinator, periodic polling, diagnostics, conversation lock/cache/TTL,
+persistence/replay, tool interface, action path, or Voice end-to-end implementation.
 
-## Planned v0.1 purpose
+## Implemented bridge purpose
 
 `hermes_conversation` will be a Home Assistant custom component that implements a Conversation entity. It receives `ConversationInput` from Assist, sends a restricted request to the Hermes API, and returns a final speech response that Home Assistant can send to TTS.
 
@@ -59,7 +60,7 @@ Home Assistant holds voice-device, Assist, and Home Assistant credentials. Those
 ### Proposed bridge component
 
 The implemented asynchronous client is not a general proxy. It accepts only a base
-URL, bearer token, and explicit limits from a future caller; calls only `/health`,
+URL, bearer token, and explicit limits from the entity caller; calls only `/health`,
 `/v1/capabilities`, and `/v1/responses`; disables redirects; uses HTTPS by default;
 and bounds payloads, output, connect time, and total time. It exposes no arbitrary
 path, header, tool, or action parameters. Configuration and setup-time validation now
@@ -79,10 +80,10 @@ The committed verifier obtains the request `model` from authenticated `/v1/capab
 
 ## Conversation state
 
-The planned component would map each incoming HA conversation to a locally held opaque
-key. The v0.1 design requires same-key serialization, idle expiry, a bounded cache, and
-local reset/unload behavior. The exact Hermes-side deletion contract must be tested
-and documented before claiming hard deletion.
+This tracker deliberately creates a fresh cryptographically opaque key for each turn;
+it never derives a Hermes key from the incoming HA conversation, user, device, or
+entry identifier. Mapping, same-key serialization, idle expiry, bounded caching,
+reset, persistence, and replay behavior remain separate tracker tasks.
 
 Only Hermes holds dialogue history. The HA `ChatLog` is not sent to avoid duplicating turns and leaking more transcript context than necessary.
 

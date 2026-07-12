@@ -11,6 +11,7 @@ from pytest_homeassistant_custom_component.common import (  # type: ignore[impor
 
 from custom_components.hermes_conversation.client import (
     HermesAuthenticationError,
+    HermesCapabilities,
     HermesClient,
     HermesClientError,
     HermesProtocolError,
@@ -37,13 +38,14 @@ async def test_setup_revalidates_and_stores_runtime_client(hass: HomeAssistant) 
 
     with patch(
         "custom_components.hermes_conversation.async_validate_connection",
-        new=AsyncMock(),
+        new=AsyncMock(return_value=HermesCapabilities(model="validated-model")),
     ) as validate:
         assert await hass.config_entries.async_setup(entry.entry_id)
 
     assert entry.state is ConfigEntryState.LOADED
     assert validate.await_args is not None
-    assert entry.runtime_data is validate.await_args.args[1]
+    assert entry.runtime_data.client is validate.await_args.args[1]
+    assert entry.runtime_data.model == "validated-model"
     validate.assert_awaited_once()
 
 
@@ -122,7 +124,7 @@ async def test_unload_clears_runtime_and_reload_revalidates(hass: HomeAssistant)
 
     with patch(
         "custom_components.hermes_conversation.async_validate_connection",
-        new=AsyncMock(),
+        new=AsyncMock(return_value=HermesCapabilities(model="validated-model")),
     ) as validate:
         assert await hass.config_entries.async_setup(entry.entry_id)
         first_client = entry.runtime_data

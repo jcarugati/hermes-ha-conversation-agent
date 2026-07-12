@@ -5,20 +5,21 @@
 The proposed v0.1 production integration will bridge spoken requests from Home Assistant Assist to an agent capable of using tools. That production bridge will be a security-sensitive boundary and must prioritize a small attack surface, explicit trust boundaries, and fail-closed behavior over broad automation capability.
 
 The current integration stores a Hermes URL and bearer token through Home Assistant's
-UI config-entry mechanism and validates health/authenticated capabilities in both the
-flow and setup. It does not send transcripts, expose diagnostics, register a
-Conversation entity, or implement the production request bridge described below.
+UI config-entry mechanism, validates health/authenticated capabilities in both the
+flow and setup, and registers one official Conversation entity per validated entry.
+The entity sends only a bounded utterance, validated model, and fresh opaque key and
+returns bounded final text. It never forwards `ChatLog`, HA context, device/user IDs,
+extra system prompts, or credentials.
 Diagnostics and diagnostics redaction are explicitly excluded from this tracker task.
 The client and lifecycle never log requests, URLs, transcripts, or tokens.
 HTTP 401/403 responses have a dedicated sanitized error path that starts Home
 Assistant reauthentication during setup; rejected replacement credentials do not
 overwrite the working entry or trigger a reload.
 
-The client has no arbitrary tool/action field or generic request interface. This
+The entity and client have no arbitrary tool/action field, execution callback, or generic request interface. This
 data-only shape prevents callers from adding tool definitions through the client, but
 does not attest or constrain tools configured independently on Hermes. Production
-wiring therefore remains blocked on the documented read-only/status execution-profile
-control.
+wiring does not attest or constrain tools independently configured on Hermes.
 
 ## Proposed security requirements for the v0.1 production bridge
 
@@ -57,12 +58,11 @@ public API accepts no callable, operation, prompt, confirmation, or action param
 and it exposes no executable action route.
 
 This is a prototype/interface property only, not end-to-end enforcement. Hermes tool
-profiles are external server configuration, and the current inert component sends
-nothing to Hermes and has no tool-execution sink. A future network bridge requires a
-verified Hermes read-only/status execution profile and enforcement at every future
-request and tool sink. It must verify the profile at startup and request time and fail
-closed when the profile is absent, stale, or unverifiable. No such attestation or sink
-integration exists in this repository today.
+profiles are external server configuration, and this component exposes no local
+tool-execution sink. The current network bridge requires a future verified Hermes
+read-only/status execution profile and enforcement at every request and tool sink
+before it can claim external tool safety. No such attestation or sink integration
+exists in this repository today.
 
 ## Reporting a vulnerability
 
