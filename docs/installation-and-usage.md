@@ -1,0 +1,112 @@
+# Installation and usage
+
+> **Current status:** this is the target workflow for the upcoming implementation. The component is not published or installable yet.
+
+## Prerequisites
+
+- A working Home Assistant installation with Assist and a configured voice pipeline.
+- Hermes Agent with a configured model and any desired toolsets.
+- Network reachability from the Home Assistant host to the Hermes API through a **private** path.
+- A dedicated bearer token for Hermes API access.
+- A supported Home Assistant release and Hermes release, to be pinned by the v0.1 compatibility matrix.
+
+## 1. Enable Hermes API server
+
+On the Hermes host, configure the API server with a new, long random key. Keep this outside Git and do not paste it into issues/chat:
+
+```bash
+# ~/.hermes/.env
+API_SERVER_ENABLED=true
+API_SERVER_KEY=<generate-a-long-random-secret>
+```
+
+Restart Hermes Gateway. Hermes documents its API server on loopback at `http://127.0.0.1:8642` by default.
+
+Verify locally first:
+
+```bash
+curl http://127.0.0.1:8642/health
+# Expected: {"status":"ok"}
+
+curl http://127.0.0.1:8642/v1/capabilities \
+  -H "Authorization: Bearer $API_SERVER_KEY"
+# Expected: auth.required=true and features.responses_api=true
+```
+
+## 2. Provide private connectivity
+
+Home Assistant must be able to reach Hermes, but the API must not be public.
+
+Recommended patterns:
+
+- A reverse proxy reachable only on the LAN, with HTTPS/TLS.
+- A Tailscale path between Home Assistant and the Hermes host, preferably with HTTPS/TLS.
+- A firewall rule allowing the HA host only.
+
+Do **not** bind Hermes directly to a public interface or port-forward it to the Internet. Do not put the bearer token in a URL query string.
+
+For a trusted local HTTP-only network, the future config flow will require an explicit acknowledgement that both the bearer token and speech text can be observed on that network.
+
+## 3. Install the component (planned)
+
+### HACS
+
+1. In HACS, add this GitHub repository as a custom integration repository.
+2. Download **Hermes Home Assistant Conversation Agent**.
+3. Restart Home Assistant.
+4. Go to **Settings → Devices & services → Add integration**.
+5. Select **Hermes Conversation Agent**.
+
+### Manual installation
+
+1. Copy `custom_components/hermes_conversation/` to your Home Assistant configuration directory:
+
+   ```text
+   /config/custom_components/hermes_conversation/
+   ```
+
+2. Restart Home Assistant.
+3. Add the integration from **Settings → Devices & services**.
+
+## 4. Configure it (planned)
+
+The config flow will request:
+
+- Private Hermes base URL, such as `https://hermes.home.arpa`.
+- Hermes API bearer token.
+- Optional spoken response language/length preferences.
+- Explicit acknowledgement when using plaintext HTTP.
+
+It will validate the configured server with its capabilities endpoint before saving. It will reject unsupported Hermes versions/capabilities rather than silently falling back to an incompatible API.
+
+## 5. Select Hermes for Assist (planned)
+
+1. Go to **Settings → Voice assistants**.
+2. Create or edit an assistant.
+3. Set **Conversation agent** to **Hermes Conversation Agent**.
+4. Keep your preferred STT and TTS providers unchanged.
+5. Assign the assistant to the Home Assistant Voice device.
+
+## Expected usage
+
+Examples once v0.1 ships:
+
+- “¿Qué luces quedaron prendidas?”
+- “Apagá las luces de abajo.”
+- “¿Cuál es la temperatura en la oficina?”
+- “¿Qué pasó hoy en casa?”
+
+Answers should be brief and appropriate for speech.
+
+## Safety limitations in v0.1
+
+Until Hermes supports server-side, parameter-bound confirmation, this integration must not perform high-impact actions such as opening garages/doors, locks, alarms, pet feeding, destructive tasks, or Home Assistant configuration changes. A voice phrase such as “confirmo” is not proof of identity.
+
+## Troubleshooting checklist
+
+1. Check the Hermes API locally with `/health`.
+2. Check `GET /v1/capabilities` with bearer auth and ensure `responses_api` is present.
+3. From the Home Assistant host/network, verify DNS/routing/TLS to the private Hermes endpoint.
+4. Confirm the API token is current and is not embedded in the URL.
+5. Check the Home Assistant integration diagnostics for redacted connection errors only; transcripts and tokens should not appear.
+6. If a request times out after it was sent, do not repeat the action immediately. The action may have completed; inspect the relevant device state first.
