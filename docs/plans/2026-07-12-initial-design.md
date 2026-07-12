@@ -73,6 +73,15 @@ Only an allowlisted request DTO (`input`, opaque `conversation`, declared model/
 3. Implement config-entry duplicate prevention, reauthentication/token rotation, options updates, TLS failures, and endpoint-unavailable behavior.
 4. Define a future server-side confirmation capability before enabling high-impact actions.
 
+### Tracker task: Restringir herramientas y acciones sensibles
+
+- [x] Remove caller-controlled operation classification and the generic executable callback dispatcher.
+- [x] Expose one HA-local, non-executing declaration for an explicit read-only/status capability.
+- [x] Remove every executable route from the public policy API, including callable input.
+- [x] Prove a high-impact callable cannot be passed through the public policy API or execute, and test only declaration/allowlist semantics.
+- [x] Document that the inert spike has no Hermes execution sink and does not provide end-to-end enforcement.
+- [ ] Require a verified Hermes read-only/status execution profile at every future request/tool sink, with startup and request-time fail-closed verification.
+
 ## Implementation phases
 
 1. Repository and contributor documentation: README, AGENTS.md, security policy, architecture diagram, installation/use guide, development setup, and a detailed implementation plan.

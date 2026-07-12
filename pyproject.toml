@@ -35,4 +35,5 @@ select = ["ASYNC", "B", "E", "F", "I", "S", "UP"]
 [tool.mypy]
 python_version = "3.14"
 strict = true
+explicit_package_bases = true
 files = ["custom_components", "tools", "tests"]

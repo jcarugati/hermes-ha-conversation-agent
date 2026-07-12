@@ -36,7 +36,9 @@ configuration UI, network client, diagnostics, or production lifecycle.
 ### Proposed prerequisites
 
 - A working Home Assistant installation with Assist and a configured voice pipeline.
-- Hermes Agent with a configured model and any desired toolsets.
+- For a future bridge, Hermes Agent with a configured model and a verified
+  read-only/status execution profile; arbitrary or action-bearing toolsets are outside
+  the permitted v0.1 scope.
 - Network reachability from the Home Assistant host to the Hermes API through a **private** path.
 - A dedicated bearer token for Hermes API access.
 - A Hermes Agent version that advertises and passes the committed contract verifier. No minimum version is pinned yet.
@@ -126,10 +128,9 @@ and reject unsupported contracts. This behavior does not exist in the spike.
 
 ### Proposed usage
 
-Examples once v0.1 ships:
+Read-only/status examples for the currently permitted future scope:
 
 - “¿Qué luces quedaron prendidas?”
-- “Apagá las luces de abajo.”
 - “¿Cuál es la temperatura en la oficina?”
 - “¿Qué pasó hoy en casa?”
 
@@ -138,6 +139,17 @@ The proposed v0.1 would return answers brief enough for speech.
 ### Required safety limitations for v0.1
 
 Until Hermes supports server-side, parameter-bound confirmation, this integration must not perform high-impact actions such as opening garages/doors, locks, alarms, pet feeding, destructive tasks, or Home Assistant configuration changes. A voice phrase such as “confirmo” is not proof of identity.
+
+The committed HA-local prototype is a non-executing read-only/status declaration. Its
+public API accepts no callable, operation, prompt, confirmation, or action parameters,
+and it exposes no executable action route.
+
+This is a local interface contract, not a usable Hermes feature or end-to-end safety
+control. The current entity returns a fixed inert response and has no network client,
+tool configuration, classifier, or Hermes execution sink. A real bridge additionally
+requires a verified Hermes read-only/status execution profile, enforcement at every
+future request and tool-execution sink, and startup plus request-time verification that
+fails closed whenever the profile is absent, stale, or unverifiable.
 
 ### Proposed troubleshooting considerations
 

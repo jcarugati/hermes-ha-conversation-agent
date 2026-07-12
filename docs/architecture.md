@@ -15,6 +15,11 @@ Its HA-backed registration and `async_converse` test is evidence for this narrow
 shape only, not for installation, Assist/Voice pipelines, Hermes interoperability, or
 production readiness.
 
+The implemented `safety` module is an HA-local prototype declaration, not a production
+boundary. It contains one immutable read-only/status request type and exposes no
+executable action route. Its public API accepts no callable, utterance, operation,
+prompt, spoken confirmation, action parameters, or generic tool list.
+
 Everything below remains the planned v0.1 architecture and is not implemented by the
 spike.
 
@@ -80,6 +85,18 @@ The verifier does not establish Hermes retention capacity or durability. Continu
 ## High-impact actions
 
 v0.1 does not expose high-impact actions through this component until Hermes has an auditable execution-time confirmation mechanism. A model prompt or a spoken confirmation alone is insufficient. High-impact includes locks, alarms, doors/garage, feeders, destructive operations, and HA configuration changes.
+
+This repository cannot enforce which tools an independently configured Hermes server
+loads, and the inert spike has no Hermes request or tool-execution sink. The HA-local
+prototype therefore does not establish end-to-end enforcement or production
+readiness.
+
+A real bridge requires Hermes to advertise a verifiable read-only/status execution
+profile. The integration must enforce that restriction at every future request and
+tool-execution sink, verify it both at startup and for each request, and fail closed
+when the profile is absent, stale, or unverifiable. Until that sink integration exists,
+the local declaration alone does not enforce Hermes behavior. Prompt instructions and
+spoken confirmation cannot substitute for these controls.
 
 ## Network deployment
 

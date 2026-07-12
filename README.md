@@ -29,7 +29,7 @@ verifies entity registration, and sends input through HA's `async_converse` disp
 This is narrow API compatibility evidence only; it does not establish installability,
 Voice pipeline behavior, Hermes compatibility, or production readiness.
 
-The initial plan was independently reviewed with **Codex GPT-5.6 Sol, medium reasoning**. The review identified three blockers that are now explicit design requirements:
+The initial plan records three blockers as explicit design requirements:
 
 1. Dangerous actions must be blocked until Hermes exposes an enforceable, server-side confirmation contract—not just a prompt.
 2. v0.1 uses Hermes’s stateful `POST /v1/responses` contract with named conversations, after an automated compatibility test pins the supported Hermes version.
@@ -47,6 +47,18 @@ or general bridge behavior. It does not inspect, log, persist, or forward the in
 utterance or HA `ChatLog`. Home Assistant constructs those objects as part of the
 current API call; the entity uses only the language and conversation ID needed to form
 the fixed HA response.
+
+The repository also contains an HA-local, non-executing declaration for one explicit
+read-only/status capability. Its public API accepts no callable, operation, prompt,
+confirmation, or action parameters, and it exposes no executable action route. The
+inert entity does not use this declaration or call Hermes, so this is not end-to-end
+enforcement and is not production-ready.
+
+Real enforcement requires a verified Hermes read-only/status execution profile and
+integration at every future request and tool-execution sink. A future bridge must
+verify that profile at startup and request time and fail closed when it is absent,
+stale, or unverifiable. This repository has no such Hermes attestation or sink
+integration today.
 
 Do not copy this component into a Home Assistant installation expecting a usable
 conversation agent. The planned v0.1 below remains unimplemented.
