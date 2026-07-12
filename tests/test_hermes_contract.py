@@ -7,20 +7,34 @@ import os
 import re
 import threading
 import unittest
+from collections.abc import Callable
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from typing import Any, TypedDict
 from unittest.mock import patch
+
+import pytest
 
 from tools.hermes_contract import (
     ContractError,
     _completed_response,
+    _endpoint,
     _new_probe_identifiers,
     live_config_from_env,
     verify_contract,
 )
 
 
+class _RecordedRequest(TypedDict):
+    method: str
+    path: str
+    authorization: str | None
+    accept: str | None
+    content_type: str | None
+    body: bytes
+
+
 class _HermesFixture(BaseHTTPRequestHandler):
-    requests: list[dict[str, object]] = []
+    requests: list[_RecordedRequest] = []
     response_override: tuple[int, str, bytes] | None = None
     post_count = 0
     markers: dict[str, str] = {}
@@ -59,9 +73,7 @@ class _HermesFixture(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(body)
         elif self.path == "/health":
-            self._json(
-                200, {"status": "ok", "platform": "hermes-agent", "version": "0.18.2"}
-            )
+            self._json(200, {"status": "ok", "platform": "hermes-agent", "version": "0.18.2"})
         elif self.path == "/v1/capabilities":
             self._json(
                 200,
@@ -71,9 +83,7 @@ class _HermesFixture(BaseHTTPRequestHandler):
                     "model": "fixture-model",
                     "auth": {"type": "bearer", "required": True},
                     "features": {"responses_api": True},
-                    "endpoints": {
-                        "responses": {"method": "POST", "path": "/v1/responses"}
-                    },
+                    "endpoints": {"responses": {"method": "POST", "path": "/v1/responses"}},
                 },
             )
         else:
@@ -85,9 +95,7 @@ class _HermesFixture(BaseHTTPRequestHandler):
         type(self).post_count += 1
         request = json.loads(body)
         conversation = request["conversation"]
-        marker_match = re.search(
-            r"continuity marker: ([A-Za-z0-9_-]+)", request["input"]
-        )
+        marker_match = re.search(r"continuity marker: ([A-Za-z0-9_-]+)", request["input"])
         if marker_match:
             self.markers[conversation] = marker_match.group(1)
             text = "acknowledged"
@@ -132,6 +140,7 @@ class ContractTest(unittest.TestCase):
         self.server.server_close()
         self.thread.join()
 
+    @pytest.mark.allow_hosts(["127.0.0.1"])
     def test_verifies_narrow_contract_and_allowlisted_request(self) -> None:
         with patch(
             "tools.hermes_contract.token_urlsafe",
@@ -172,6 +181,20 @@ class ContractTest(unittest.TestCase):
         )
         self.assertIsNone(_HermesFixture.requests[0]["authorization"])
 
+    @pytest.mark.allow_hosts(["127.0.0.1"])
+    def test_endpoint_rejects_unsafe_url_components(self) -> None:
+        unsafe_urls = (
+            "file:///private/data",
+            "ftp://hermes.invalid",
+            "https://user:secret@hermes.invalid",
+            "https://hermes.invalid?token=secret",
+            "https://hermes.invalid#private",
+        )
+        for url in unsafe_urls:
+            with self.subTest(url=url), self.assertRaises(ContractError):
+                _endpoint(url, "/health")
+
+    @pytest.mark.allow_hosts(["127.0.0.1"])
     def test_rejects_missing_responses_capability_before_post(self) -> None:
         original = _HermesFixture.do_GET
 
@@ -194,6 +217,7 @@ class ContractTest(unittest.TestCase):
                 verify_contract(self.base_url, "fixture-secret")
         self.assertEqual(len(_HermesFixture.requests), 2)
 
+    @pytest.mark.allow_hosts(["127.0.0.1"])
     def test_rejects_capabilities_without_required_bearer(self) -> None:
         original = _HermesFixture.do_GET
 
@@ -207,9 +231,7 @@ class ContractTest(unittest.TestCase):
                         "model": "m",
                         "auth": {"type": "bearer", "required": False},
                         "features": {"responses_api": True},
-                        "endpoints": {
-                            "responses": {"method": "POST", "path": "/v1/responses"}
-                        },
+                        "endpoints": {"responses": {"method": "POST", "path": "/v1/responses"}},
                     },
                 )
             else:
@@ -220,6 +242,7 @@ class ContractTest(unittest.TestCase):
                 verify_contract(self.base_url, "fixture-secret")
         self.assertEqual(len(_HermesFixture.requests), 2)
 
+    @pytest.mark.allow_hosts(["127.0.0.1"])
     def test_rejects_capabilities_without_required_response_route(self) -> None:
         original = _HermesFixture.do_GET
 
@@ -244,14 +267,13 @@ class ContractTest(unittest.TestCase):
                 verify_contract(self.base_url, "fixture-secret")
         self.assertEqual(len(_HermesFixture.requests), 2)
 
+    @pytest.mark.allow_hosts(["127.0.0.1"])
     def test_rejects_text_without_explicit_output_text_structure(self) -> None:
         original = _HermesFixture.do_POST
 
         def invalid_content(handler: _HermesFixture) -> None:
             if _HermesFixture.post_count == 0:
-                body = handler.rfile.read(
-                    int(handler.headers.get("Content-Length", "0"))
-                )
+                body = handler.rfile.read(int(handler.headers.get("Content-Length", "0")))
                 handler._record(body)
                 type(handler).post_count += 1
                 handler._json(
@@ -283,14 +305,13 @@ class ContractTest(unittest.TestCase):
             with self.assertRaisesRegex(ContractError, "output_text"):
                 verify_contract(self.base_url, "fixture-secret")
 
+    @pytest.mark.allow_hosts(["127.0.0.1"])
     def test_rejects_missing_claimed_response_fields(self) -> None:
         original = _HermesFixture.do_POST
 
         def missing_usage(handler: _HermesFixture) -> None:
             if _HermesFixture.post_count == 0:
-                body = handler.rfile.read(
-                    int(handler.headers.get("Content-Length", "0"))
-                )
+                body = handler.rfile.read(int(handler.headers.get("Content-Length", "0")))
                 handler._record(body)
                 type(handler).post_count += 1
                 handler._json(
@@ -304,9 +325,7 @@ class ContractTest(unittest.TestCase):
                             {
                                 "type": "message",
                                 "role": "assistant",
-                                "content": [
-                                    {"type": "output_text", "text": "acknowledged"}
-                                ],
+                                "content": [{"type": "output_text", "text": "acknowledged"}],
                             }
                         ],
                     },
@@ -318,6 +337,7 @@ class ContractTest(unittest.TestCase):
             with self.assertRaisesRegex(ContractError, "created_at"):
                 verify_contract(self.base_url, "fixture-secret")
 
+    @pytest.mark.allow_hosts(["127.0.0.1"])
     def test_response_schema_requires_every_documented_nested_field(self) -> None:
         valid = {
             "id": "resp_schema",
@@ -334,7 +354,7 @@ class ContractTest(unittest.TestCase):
             ],
             "usage": {"input_tokens": 1, "output_tokens": 1, "total_tokens": 2},
         }
-        mutations = (
+        mutations: tuple[tuple[str, Callable[[dict[str, Any]], object]], ...] = (
             ("message type", lambda payload: payload["output"][0].pop("type")),
             ("message role", lambda payload: payload["output"][0].pop("role")),
             (
@@ -356,11 +376,13 @@ class ContractTest(unittest.TestCase):
                 with self.assertRaises(ContractError):
                     _completed_response(payload, "fixture-model")
 
+    @pytest.mark.allow_hosts(["127.0.0.1"])
     def test_rejects_reused_response_id(self) -> None:
         _HermesFixture.reuse_response_id = True
         with self.assertRaisesRegex(ContractError, "reused an id"):
             verify_contract(self.base_url, "fixture-secret")
 
+    @pytest.mark.allow_hosts(["127.0.0.1"])
     def test_each_probe_uses_fresh_conversation_and_marker(self) -> None:
         verify_contract(self.base_url, "fixture-secret")
         first_posts = [
@@ -377,11 +399,10 @@ class ContractTest(unittest.TestCase):
             if request["method"] == "POST"
         ]
 
-        self.assertNotEqual(
-            first_posts[0]["conversation"], second_posts[0]["conversation"]
-        )
+        self.assertNotEqual(first_posts[0]["conversation"], second_posts[0]["conversation"])
         self.assertNotEqual(first_posts[0]["input"], second_posts[0]["input"])
 
+    @pytest.mark.allow_hosts(["127.0.0.1"])
     def test_conversation_and_marker_cannot_collide_within_a_probe(self) -> None:
         with patch(
             "tools.hermes_contract.token_urlsafe",
@@ -389,6 +410,7 @@ class ContractTest(unittest.TestCase):
         ):
             self.assertEqual(_new_probe_identifiers(), ("same", "different"))
 
+    @pytest.mark.allow_hosts(["127.0.0.1"])
     def test_stale_marker_replay_does_not_prove_continuity(self) -> None:
         def replay_old_marker(handler: _HermesFixture) -> None:
             body = handler.rfile.read(int(handler.headers.get("Content-Length", "0")))
@@ -424,11 +446,13 @@ class ContractTest(unittest.TestCase):
             with self.assertRaisesRegex(ContractError, "continuity"):
                 verify_contract(self.base_url, "fixture-secret")
 
+    @pytest.mark.allow_hosts(["127.0.0.1"])
     def test_rejects_non_json_response(self) -> None:
         _HermesFixture.response_override = (200, "text/plain", b"not json")
         with self.assertRaisesRegex(ContractError, "content type"):
             verify_contract(self.base_url, "fixture-secret")
 
+    @pytest.mark.allow_hosts(["127.0.0.1"])
     def test_rejects_http_error_without_echoing_response_or_token(self) -> None:
         _HermesFixture.response_override = (
             401,
@@ -442,11 +466,13 @@ class ContractTest(unittest.TestCase):
         self.assertNotIn("private", message)
         self.assertNotIn("fixture-secret", message)
 
+    @pytest.mark.allow_hosts(["127.0.0.1"])
     def test_rejects_oversized_response(self) -> None:
         _HermesFixture.response_override = (200, "application/json", b" " * 4097)
         with self.assertRaisesRegex(ContractError, "exceeds 4096 bytes"):
             verify_contract(self.base_url, "fixture-secret", max_response_bytes=4096)
 
+    @pytest.mark.allow_hosts(["127.0.0.1"])
     def test_live_config_requires_explicit_flag_url_and_token(self) -> None:
         names = (
             "HERMES_CONTRACT_LIVE",
@@ -464,9 +490,7 @@ class ContractTest(unittest.TestCase):
             {names[0]: "1", names[1]: "https://example.invalid", names[2]: "secret"},
             clear=True,
         ):
-            self.assertEqual(
-                live_config_from_env(), ("https://example.invalid", "secret")
-            )
+            self.assertEqual(live_config_from_env(), ("https://example.invalid", "secret"))
 
 
 class LiveContractTest(unittest.TestCase):
@@ -476,9 +500,8 @@ class LiveContractTest(unittest.TestCase):
     )
     def test_explicitly_configured_live_contract(self) -> None:
         config = live_config_from_env()
-        self.assertIsNotNone(
-            config, "live test needs HERMES_CONTRACT_BASE_URL and HERMES_CONTRACT_TOKEN"
-        )
+        if config is None:
+            self.fail("live test needs HERMES_CONTRACT_BASE_URL and HERMES_CONTRACT_TOKEN")
         evidence = verify_contract(*config)
         self.assertTrue(evidence.hermes_version)
         self.assertTrue(evidence.model)
