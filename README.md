@@ -1,16 +1,33 @@
-# Hermes Home Assistant Conversation Agent
+# Home Assistant ConversationEntity compatibility spike
 
-> A Home Assistant custom integration that connects **Assist / Home Assistant Voice** to **Hermes Agent** for private, spoken, tool-using home conversations.
+> A fixed-response developer spike that verifies one Home Assistant Conversation entity
+> API shape. It does not connect Assist, Home Assistant Voice, or Hermes Agent.
 
 ## Mission
 
-Make Hermes a first-class **Home Assistant Conversation Agent**: a person speaks to Home Assistant Voice, Assist transcribes the request, Hermes reasons and uses its configured tools, and Home Assistant speaks Hermes’s final answer.
+The proposed project would make Hermes a **Home Assistant Conversation Agent**: Assist
+would pass a transcribed request to Hermes, and Home Assistant would speak Hermes's
+final answer. That bridge is a future goal, not functionality in this spike.
 
-The project is deliberately a **thin, secure adapter**. It does not replace Home Assistant’s STT, TTS, wake-word detection, dashboards, entity registry, or automation engine. It does not reimplement smart-home commands. Home Assistant owns the voice pipeline; Hermes owns reasoning and tool selection.
+The proposed bridge is deliberately a **thin, secure adapter**. It would not replace
+Home Assistant's STT, TTS, wake-word detection, dashboards, entity registry, or
+automation engine. Home Assistant would own the voice pipeline; Hermes would own
+reasoning and tool selection.
 
 ## Status
 
-**Contract validation / pre-component implementation.** This repository is **not installable yet**. The narrow Hermes Responses API has a deterministic verifier and an explicitly opt-in live test, but the strengthened verifier still needs a fresh live run before a minimum Hermes version can be pinned. Home Assistant component code has not been implemented.
+**Contract validation / developer-only compatibility spike.** This repository is **not installable yet**. The narrow Hermes Responses API has a deterministic verifier and an explicitly opt-in live test, but the strengthened verifier still needs a fresh live run before a minimum Hermes version can be pinned. The inert Home Assistant compatibility spike is implemented; the production Hermes bridge is not.
+
+**ConversationEntity compatibility spike, not an installable bridge.** The repository
+contains one deliberately inert custom component used only to test Home Assistant's
+current entity-based Conversation API. It registers a single entity and always returns
+the same non-action-bearing reply.
+
+The spike is tested against **Home Assistant Core 2026.7.1** on Python 3.14.2. The test
+starts Home Assistant, loads the custom integration through HA's integration loader,
+verifies entity registration, and sends input through HA's `async_converse` dispatcher.
+This is narrow API compatibility evidence only; it does not establish installability,
+Voice pipeline behavior, Hermes compatibility, or production readiness.
 
 The initial plan was independently reviewed with **Codex GPT-5.6 Sol, medium reasoning**. The review identified three blockers that are now explicit design requirements:
 
@@ -22,7 +39,19 @@ Read the complete reviewed plan in [`docs/plans/2026-07-12-initial-design.md`](d
 
 The required request/response schema, current evidence limitations, and test commands are documented in [`docs/hermes-responses-contract.md`](docs/hermes-responses-contract.md).
 
-## Superficial design
+## Compatibility spike boundary
+
+The spike has no Hermes HTTP client, endpoint or token configuration, capability
+validation, conversation storage, cache, TTL, locks, diagnostics, config flow, tools,
+or general bridge behavior. It does not inspect, log, persist, or forward the incoming
+utterance or HA `ChatLog`. Home Assistant constructs those objects as part of the
+current API call; the entity uses only the language and conversation ID needed to form
+the fixed HA response.
+
+Do not copy this component into a Home Assistant installation expecting a usable
+conversation agent. The planned v0.1 below remains unimplemented.
+
+## Proposed v0.1 design
 
 ```text
 Home Assistant Voice

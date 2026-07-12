@@ -14,7 +14,7 @@ A user selects **Hermes** under Home Assistant’s Voice Assistant settings and 
 - A `conversation` platform implementation that forwards Assist text to Hermes’s OpenAI-compatible API.
 - Per-conversation context continuity using a deterministic, privacy-preserving Hermes conversation key.
 - Spanish-first, concise response instructions sent to Hermes.
-- Explicit safety policy in the request instructions: normal home controls allowed when unambiguous; request confirmation for locks, alarms, garage/doors, pet feeding, deletions, configuration changes, and other irreversible/high-impact actions.
+- Explicit safety policy: normal home controls are allowed when unambiguous, but the proposed v0.1 production bridge must block locks, alarms, garage/door actuators, pet feeding, deletions, configuration changes, and other high-impact actions until Hermes provides a server-enforced pending-action protocol binding the action ID, exact parameters, source conversation, and expiry.
 - Timeouts, useful spoken error responses, structured logging without secrets or raw authorization values.
 - Unit tests for config validation, request construction, error handling, response parsing, and conversation-key isolation.
 - Documentation: prerequisites, network topology, secure setup, HACS/manual installation, configuration, selecting Hermes as a conversation agent, troubleshooting, and threat model.
@@ -25,7 +25,7 @@ A user selects **Hermes** under Home Assistant’s Voice Assistant settings and 
 - Do not implement STT, TTS, wake-word, or hardware support; Home Assistant owns that pipeline.
 - Do not duplicate Home Assistant device-control logic in the integration; Hermes owns reasoning/tool selection.
 - Do not add a webhook-only async mode as the primary interaction path; the goal is synchronous spoken replies.
-- Do not execute dangerous actions solely because an untrusted voice request said so; Hermes must ask for confirmation under the stated policy.
+- Do not treat a prompt or spoken confirmation as a safety boundary; high-impact actions remain blocked until the required server-enforced, parameter-bound pending-action protocol exists.
 - Do not persist raw voice transcripts in the integration.
 
 ## Architecture

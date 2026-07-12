@@ -2,9 +2,11 @@
 
 ## Security posture
 
-This project bridges spoken requests from Home Assistant Assist to an agent capable of using tools. That makes the bridge a security-sensitive boundary. The project prioritizes a small attack surface, explicit trust boundaries, and fail-closed behavior over broad automation capability.
+The proposed v0.1 production integration will bridge spoken requests from Home Assistant Assist to an agent capable of using tools. That production bridge will be a security-sensitive boundary and must prioritize a small attack surface, explicit trust boundaries, and fail-closed behavior over broad automation capability.
 
-## Supported security baseline for v0.1
+The current compatibility spike only registers a Conversation entity and returns a fixed response. It does not connect to Hermes, send transcripts or tokens, expose diagnostics, or implement the production network bridge described below.
+
+## Proposed security requirements for the v0.1 production bridge
 
 The strengthened Hermes contract verifier has deterministic coverage but still awaits a fresh live run; no minimum Hermes version is currently claimed or pinned.
 
@@ -18,11 +20,11 @@ The strengthened Hermes contract verifier has deterministic coverage but still a
 - Diagnostics use Home Assistant redaction utilities and are tested against nested sensitive fields.
 - No automatic retry after a timeout or disconnect once a request could have reached Hermes.
 
-## High-impact actions
+## Proposed v0.1 handling of high-impact actions
 
 A model instruction such as “ask for confirmation” does not reliably protect an action. Voice is also not identity proof.
 
-Until Hermes provides a server-enforced confirmation API that binds a pending action ID, exact action parameters, origin conversation, and expiry, this project must block high-impact actions from the voice bridge. This includes locks, alarms, doors/garage, pet feeding, deletion/destructive commands, and Home Assistant configuration changes.
+Until Hermes provides a server-enforced confirmation API that binds a pending action ID, exact action parameters, origin conversation, and expiry, the proposed v0.1 production bridge must block high-impact actions. This includes locks, alarms, doors/garage, pet feeding, deletion/destructive commands, and Home Assistant configuration changes.
 
 ## Reporting a vulnerability
 

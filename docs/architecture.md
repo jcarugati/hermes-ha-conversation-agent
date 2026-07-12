@@ -1,6 +1,24 @@
 # Architecture
 
-## Purpose
+## Current compatibility spike
+
+The code currently present is not the bridge described in the remaining sections. It
+is a deliberately minimal compatibility spike for Home Assistant Core 2026.7.1. During
+setup it adds one `ConversationEntity` to Home Assistant's conversation entity
+component. Home Assistant passes `ConversationInput` and creates the required
+`ChatLog`; the spike does not inspect, log, persist, or forward their transcript
+content. It returns a fixed `query_answer` with no successful or failed action targets.
+
+The spike contains no network client, Hermes configuration, capability validation,
+conversation state, cache, TTL, serialization, diagnostics, config flow, or tools.
+Its HA-backed registration and `async_converse` test is evidence for this narrow API
+shape only, not for installation, Assist/Voice pipelines, Hermes interoperability, or
+production readiness.
+
+Everything below remains the planned v0.1 architecture and is not implemented by the
+spike.
+
+## Planned v0.1 purpose
 
 `hermes_conversation` will be a Home Assistant custom component that implements a Conversation entity. It receives `ConversationInput` from Assist, sends a restricted request to the Hermes API, and returns a final speech response that Home Assistant can send to TTS.
 
@@ -24,9 +42,13 @@ Voice device → Home Assistant Assist STT
 
 Home Assistant holds voice-device, Assist, and Home Assistant credentials. Those values remain inside Home Assistant. The component must not forward HA `Context`, long-lived tokens, cookies, headers, service-call data, or `ChatLog` content.
 
-### Bridge component
+### Proposed bridge component
 
-The component is an asynchronous HTTP client and Conversation entity—not a general proxy. It accepts only an operator-configured Hermes endpoint. It validates the endpoint, uses bearer authentication from its config entry, disables redirects, enforces normal TLS, bounds payloads/deadlines, and sanitizes final speech.
+The planned component would be an asynchronous HTTP client and Conversation entity,
+not a general proxy. The v0.1 design requires it to accept only an operator-configured
+Hermes endpoint, validate that endpoint, use bearer authentication, disable redirects,
+enforce normal TLS, bound payloads and deadlines, and sanitize final speech. None of
+these production features exist in the spike.
 
 ### Hermes
 
@@ -36,7 +58,10 @@ The committed verifier obtains the request `model` from authenticated `/v1/capab
 
 ## Conversation state
 
-The component maps each incoming HA conversation to a locally held opaque key. Requests for the same key run serially. Entries have an idle TTL and a maximum cache size. Reset/unload removes mappings locally; the exact Hermes-side deletion contract must be tested and documented before claiming hard deletion.
+The planned component would map each incoming HA conversation to a locally held opaque
+key. The v0.1 design requires same-key serialization, idle expiry, a bounded cache, and
+local reset/unload behavior. The exact Hermes-side deletion contract must be tested
+and documented before claiming hard deletion.
 
 Only Hermes holds dialogue history. The HA `ChatLog` is not sent to avoid duplicating turns and leaking more transcript context than necessary.
 

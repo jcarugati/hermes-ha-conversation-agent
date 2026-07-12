@@ -1,0 +1,9 @@
+{
+  "domain": "hermes_conversation",
+  "name": "Hermes Conversation Compatibility Spike",
+  "codeowners": [],
+  "dependencies": ["conversation"],
+  "documentation": "https://github.com/jcarugati/hermes-ha-conversation-agent",
+  "integration_type": "service",
+  "version": "0.0.0"
+}
