@@ -2,6 +2,31 @@
 
 > **Current status:** the Hermes HTTP contract verifier is implemented, but its strengthened checks await a fresh live run and the Home Assistant component is not published or installable yet.
 
+> **Current status:** this repository contains a developer-only ConversationEntity
+> compatibility spike plus the target workflow for a future implementation. It is not
+> a Hermes bridge, is not published, and is not supported for installation or use.
+
+## Compatibility evidence available now
+
+The spike registers one inert conversation entity and returns a fixed reply. It has no
+Hermes connection, token or endpoint configuration, tools, conversation state, or
+config flow. It neither inspects nor forwards the utterance or Home Assistant
+`ChatLog`.
+
+The automated test is pinned to Home Assistant Core 2026.7.1 and Python 3.14. It uses
+Home Assistant's own test harness, integration loader, entity registration, and
+`async_converse` dispatcher:
+
+```bash
+uv python install 3.14
+uv sync --python 3.14
+uv run --python 3.14 pytest
+```
+
+Passing this test demonstrates only that the fixed-reply entity matches that release's
+Conversation API. It does not test Assist/Voice, STT/TTS, installation lifecycle,
+Hermes, or any production behavior.
+
 ## Prerequisites
 
 - A working Home Assistant installation with Assist and a configured voice pipeline.
@@ -51,7 +76,7 @@ Do **not** bind Hermes directly to a public interface or port-forward it to the 
 
 For a trusted local HTTP-only network, the future config flow will require an explicit acknowledgement that both the bearer token and speech text can be observed on that network.
 
-## 3. Install the component (planned)
+## 3. Install the future component (planned; not the spike)
 
 ### HACS
 
@@ -72,7 +97,7 @@ For a trusted local HTTP-only network, the future config flow will require an ex
 2. Restart Home Assistant.
 3. Add the integration from **Settings → Devices & services**.
 
-## 4. Configure it (planned)
+## 4. Configure the future component (planned)
 
 The config flow will request:
 
@@ -83,7 +108,7 @@ The config flow will request:
 
 It will validate the configured server with its capabilities endpoint before saving. It will reject unsupported Hermes versions/capabilities rather than silently falling back to an incompatible API.
 
-## 5. Select Hermes for Assist (planned)
+## 5. Select the future Hermes agent for Assist (planned)
 
 1. Go to **Settings → Voice assistants**.
 2. Create or edit an assistant.

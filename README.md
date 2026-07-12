@@ -12,6 +12,17 @@ The project is deliberately a **thin, secure adapter**. It does not replace Home
 
 **Contract validation / pre-component implementation.** This repository is **not installable yet**. The narrow Hermes Responses API has a deterministic verifier and an explicitly opt-in live test, but the strengthened verifier still needs a fresh live run before a minimum Hermes version can be pinned. Home Assistant component code has not been implemented.
 
+**ConversationEntity compatibility spike, not an installable bridge.** The repository
+contains one deliberately inert custom component used only to test Home Assistant's
+current entity-based Conversation API. It registers a single entity and always returns
+the same non-action-bearing reply.
+
+The spike is tested against **Home Assistant Core 2026.7.1** on Python 3.14. The test
+starts Home Assistant, loads the custom integration through HA's integration loader,
+verifies entity registration, and sends input through HA's `async_converse` dispatcher.
+This is narrow API compatibility evidence only; it does not establish installability,
+Voice pipeline behavior, Hermes compatibility, or production readiness.
+
 The initial plan was independently reviewed with **Codex GPT-5.6 Sol, medium reasoning**. The review identified three blockers that are now explicit design requirements:
 
 1. Dangerous actions must be blocked until Hermes exposes an enforceable, server-side confirmation contract—not just a prompt.
@@ -21,6 +32,18 @@ The initial plan was independently reviewed with **Codex GPT-5.6 Sol, medium rea
 Read the complete reviewed plan in [`docs/plans/2026-07-12-initial-design.md`](docs/plans/2026-07-12-initial-design.md).
 
 The required request/response schema, current evidence limitations, and test commands are documented in [`docs/hermes-responses-contract.md`](docs/hermes-responses-contract.md).
+
+## Compatibility spike boundary
+
+The spike has no Hermes HTTP client, endpoint or token configuration, capability
+validation, conversation storage, cache, TTL, locks, diagnostics, config flow, tools,
+or general bridge behavior. It does not inspect, log, persist, or forward the incoming
+utterance or HA `ChatLog`. Home Assistant constructs those objects as part of the
+current API call; the entity uses only the language and conversation ID needed to form
+the fixed HA response.
+
+Do not copy this component into a Home Assistant installation expecting a usable
+conversation agent. The planned v0.1 below remains unimplemented.
 
 ## Superficial design
 

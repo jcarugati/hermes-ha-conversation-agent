@@ -1,6 +1,24 @@
 # Architecture
 
-## Purpose
+## Current compatibility spike
+
+The code currently present is not the bridge described in the remaining sections. It
+is a deliberately minimal compatibility spike for Home Assistant Core 2026.7.1. During
+setup it adds one `ConversationEntity` to Home Assistant's conversation entity
+component. Home Assistant passes `ConversationInput` and creates the required
+`ChatLog`; the spike does not inspect, log, persist, or forward their transcript
+content. It returns a fixed `query_answer` with no successful or failed action targets.
+
+The spike contains no network client, Hermes configuration, capability validation,
+conversation state, cache, TTL, serialization, diagnostics, config flow, or tools.
+Its HA-backed registration and `async_converse` test is evidence for this narrow API
+shape only, not for installation, Assist/Voice pipelines, Hermes interoperability, or
+production readiness.
+
+Everything below remains the planned v0.1 architecture and is not implemented by the
+spike.
+
+## Planned v0.1 purpose
 
 `hermes_conversation` will be a Home Assistant custom component that implements a Conversation entity. It receives `ConversationInput` from Assist, sends a restricted request to the Hermes API, and returns a final speech response that Home Assistant can send to TTS.
 
