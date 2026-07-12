@@ -4,7 +4,18 @@
 
 The proposed v0.1 production integration will bridge spoken requests from Home Assistant Assist to an agent capable of using tools. That production bridge will be a security-sensitive boundary and must prioritize a small attack surface, explicit trust boundaries, and fail-closed behavior over broad automation capability.
 
-The current compatibility spike only registers a Conversation entity and returns a fixed response. It does not connect to Hermes, send transcripts or tokens, expose diagnostics, or implement the production network bridge described below.
+The current compatibility spike only registers a Conversation entity and returns a
+fixed response. It does not connect to Hermes, send transcripts or tokens, expose
+diagnostics, or implement the production network bridge described below. An unwired
+client module implements the fixed outbound HTTP contract for future callers; it
+stores configuration only in memory and never logs requests, URLs, transcripts, or
+tokens.
+
+The client has no arbitrary tool/action field or generic request interface. This
+data-only shape prevents callers from adding tool definitions through the client, but
+does not attest or constrain tools configured independently on Hermes. Production
+wiring therefore remains blocked on the documented read-only/status execution-profile
+control.
 
 ## Proposed security requirements for the v0.1 production bridge
 

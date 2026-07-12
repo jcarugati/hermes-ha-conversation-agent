@@ -13,8 +13,10 @@ to Home Assistant's conversation entity component. Home Assistant passes
 log, persist, or forward their transcript content. It returns a fixed `query_answer`
 with no successful or failed action targets.
 
-The spike contains no network client, Hermes configuration, capability validation,
-conversation state, cache, TTL, serialization, diagnostics, config flow, or tools.
+The spike now contains a standalone network client with strict validation for the
+three verified Hermes endpoints, but no code instantiates or wires it. There is no
+Hermes configuration, conversation state, cache, TTL, serialization, diagnostics,
+config flow, or tool interface.
 Its HA-backed registration and `async_converse` test is evidence for this narrow API
 shape and minimal package layout only, not for production installation lifecycle,
 Assist/Voice pipelines, Hermes interoperability, or production readiness.
@@ -53,11 +55,12 @@ Home Assistant holds voice-device, Assist, and Home Assistant credentials. Those
 
 ### Proposed bridge component
 
-The planned component would be an asynchronous HTTP client and Conversation entity,
-not a general proxy. The v0.1 design requires it to accept only an operator-configured
-Hermes endpoint, validate that endpoint, use bearer authentication, disable redirects,
-enforce normal TLS, bound payloads and deadlines, and sanitize final speech. None of
-these production features exist in the spike.
+The implemented asynchronous client is not a general proxy. It accepts only a base
+URL, bearer token, and explicit limits from a future caller; calls only `/health`,
+`/v1/capabilities`, and `/v1/responses`; disables redirects; uses HTTPS by default;
+and bounds payloads, output, connect time, and total time. It exposes no arbitrary
+path, header, tool, or action parameters. Home Assistant wiring and configuration do
+not yet exist.
 
 ### Hermes
 

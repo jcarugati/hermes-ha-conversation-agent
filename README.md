@@ -23,7 +23,9 @@ published, released, UI-configurable, or suitable for production use. The narrow
 Hermes Responses API has a deterministic verifier and an explicitly opt-in live test,
 but the strengthened verifier still needs a fresh live run before a minimum Hermes
 version can be pinned. The inert Home Assistant compatibility spike is implemented;
-the production Hermes bridge is not.
+the production Hermes bridge is not. A narrow asynchronous Hermes HTTP client is now
+available for later integration, but nothing calls it and it has no configuration or
+credential persistence.
 
 **ConversationEntity compatibility spike, not an installable bridge.** The repository
 contains one deliberately inert custom component used only to test Home Assistant's
@@ -48,9 +50,11 @@ The required request/response schema, current evidence limitations, and test com
 
 ## Compatibility spike boundary
 
-The spike has no Hermes HTTP client, endpoint or token configuration, capability
-validation, conversation storage, cache, TTL, locks, diagnostics, config flow, tools,
-or general bridge behavior. It does not inspect, log, persist, or forward the incoming
+The spike has no wired Hermes connection, endpoint or token configuration,
+conversation storage, cache, TTL, locks, diagnostics, config flow, tools, or general
+bridge behavior. The standalone client validates the fixed Hermes health,
+capabilities, and Responses API surface for future callers. It does not inspect, log,
+persist, or forward the incoming
 utterance or HA `ChatLog`. Home Assistant constructs those objects as part of the
 current API call; the entity uses only the language and conversation ID needed to form
 the fixed HA response.
@@ -67,7 +71,9 @@ verify that profile at startup and request time and fail closed when it is absen
 stale, or unverifiable. This repository has no such Hermes attestation or sink
 integration today.
 
-Installing this component exposes only the fixed-response developer entity. Do not
+The client accepts only model, bounded text input, and an opaque conversation key for
+`POST /v1/responses`; it exposes no generic path, headers, tools, actions, or retry
+facility. Installing this component still exposes only the fixed-response developer entity. Do not
 install it expecting a usable Hermes conversation agent. The planned v0.1 below
 remains unimplemented.
 

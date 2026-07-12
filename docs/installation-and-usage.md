@@ -56,7 +56,13 @@ production behavior.
 
 The remaining sections record a possible operator workflow for the planned v0.1.
 They are design notes, not instructions that work with this spike. The spike has no
-configuration UI, network client, diagnostics, or production lifecycle.
+configuration UI, diagnostics, or production lifecycle. A developer-only HTTP client
+exists for future wiring, but the installed entity does not instantiate or call it.
+
+The client requires its future caller to supply Home Assistant's shared asynchronous
+HTTP session plus an already managed base URL and token. HTTPS is mandatory by
+default; plaintext HTTP requires the caller's explicit opt-in. It does not store those
+values or provide operator configuration.
 
 ### Proposed prerequisites
 

@@ -82,6 +82,19 @@ Only an allowlisted request DTO (`input`, opaque `conversation`, declared model/
 - [x] Document that the inert spike has no Hermes execution sink and does not provide end-to-end enforcement.
 - [ ] Require a verified Hermes read-only/status execution profile at every future request/tool sink, with startup and request-time fail-closed verification.
 
+### Tracker task: Construir cliente HTTP seguro para Hermes
+
+- [x] Add an injected-session asynchronous client for only `/health`,
+  `/v1/capabilities`, and `/v1/responses`.
+- [x] Enforce HTTPS by default, explicit HTTP opt-in, safe base URLs, bearer headers,
+  disabled redirects, strict JSON/schema checks, and bounded payloads/deadlines.
+- [x] Propagate cancellation and make dispatched response timeouts indeterminate with
+  no automatic retry.
+- [x] Keep the request interface data-only with no generic paths, headers, tools, or
+  action fields.
+- [ ] Wire the client into configuration and ConversationEntity lifecycle (separate
+  tracker tasks).
+
 ## Implementation phases
 
 1. Repository and contributor documentation: README, AGENTS.md, security policy, architecture diagram, installation/use guide, development setup, and a detailed implementation plan.
