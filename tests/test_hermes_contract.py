@@ -7,20 +7,32 @@ import os
 import re
 import threading
 import unittest
+from collections.abc import Callable
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from typing import Any, TypedDict
 from unittest.mock import patch
 
 from tools.hermes_contract import (
     ContractError,
     _completed_response,
+    _endpoint,
     _new_probe_identifiers,
     live_config_from_env,
     verify_contract,
 )
 
 
+class _RecordedRequest(TypedDict):
+    method: str
+    path: str
+    authorization: str | None
+    accept: str | None
+    content_type: str | None
+    body: bytes
+
+
 class _HermesFixture(BaseHTTPRequestHandler):
-    requests: list[dict[str, object]] = []
+    requests: list[_RecordedRequest] = []
     response_override: tuple[int, str, bytes] | None = None
     post_count = 0
     markers: dict[str, str] = {}
@@ -171,6 +183,18 @@ class ContractTest(unittest.TestCase):
             },
         )
         self.assertIsNone(_HermesFixture.requests[0]["authorization"])
+
+    def test_endpoint_rejects_unsafe_url_components(self) -> None:
+        unsafe_urls = (
+            "file:///private/data",
+            "ftp://hermes.invalid",
+            "https://user:secret@hermes.invalid",
+            "https://hermes.invalid?token=secret",
+            "https://hermes.invalid#private",
+        )
+        for url in unsafe_urls:
+            with self.subTest(url=url), self.assertRaises(ContractError):
+                _endpoint(url, "/health")
 
     def test_rejects_missing_responses_capability_before_post(self) -> None:
         original = _HermesFixture.do_GET
@@ -334,7 +358,9 @@ class ContractTest(unittest.TestCase):
             ],
             "usage": {"input_tokens": 1, "output_tokens": 1, "total_tokens": 2},
         }
-        mutations = (
+        mutations: tuple[
+            tuple[str, Callable[[dict[str, Any]], object]], ...
+        ] = (
             ("message type", lambda payload: payload["output"][0].pop("type")),
             ("message role", lambda payload: payload["output"][0].pop("role")),
             (
@@ -476,9 +502,10 @@ class LiveContractTest(unittest.TestCase):
     )
     def test_explicitly_configured_live_contract(self) -> None:
         config = live_config_from_env()
-        self.assertIsNotNone(
-            config, "live test needs HERMES_CONTRACT_BASE_URL and HERMES_CONTRACT_TOKEN"
-        )
+        if config is None:
+            self.fail(
+                "live test needs HERMES_CONTRACT_BASE_URL and HERMES_CONTRACT_TOKEN"
+            )
         evidence = verify_contract(*config)
         self.assertTrue(evidence.hermes_version)
         self.assertTrue(evidence.model)

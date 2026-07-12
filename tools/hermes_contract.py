@@ -75,7 +75,8 @@ def _json_request(
         data = json.dumps(body, separators=(",", ":")).encode("utf-8")
         headers["Content-Type"] = "application/json"
         method = "POST"
-    request = Request(
+    # _endpoint rejects every scheme except HTTP(S), plus credential-bearing URLs.
+    request = Request(  # noqa: S310
         _endpoint(base_url, path), data=data, headers=headers, method=method
     )
     try:
