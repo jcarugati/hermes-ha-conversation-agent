@@ -16,7 +16,7 @@ reasoning and tool selection.
 
 ## Status
 
-**Contract validation / pre-component implementation.** This repository is **not installable yet**. The narrow Hermes Responses API has a deterministic verifier and an explicitly opt-in live test, but the strengthened verifier still needs a fresh live run before a minimum Hermes version can be pinned. Home Assistant component code has not been implemented.
+**Contract validation / developer-only compatibility spike.** This repository is **not installable yet**. The narrow Hermes Responses API has a deterministic verifier and an explicitly opt-in live test, but the strengthened verifier still needs a fresh live run before a minimum Hermes version can be pinned. The inert Home Assistant compatibility spike is implemented; the production Hermes bridge is not.
 
 **ConversationEntity compatibility spike, not an installable bridge.** The repository
 contains one deliberately inert custom component used only to test Home Assistant's
