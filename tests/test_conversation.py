@@ -229,9 +229,7 @@ async def test_unload_and_reload_do_not_double_entity_instances(hass: HomeAssist
         client = MagicMock(spec=HermesClient)
         client.async_health = AsyncMock()
         client.async_capabilities = AsyncMock(return_value=HermesCapabilities(model="model"))
-        client.async_respond = AsyncMock(
-            return_value=HermesResponse(response_id="id", text="ok")
-        )
+        client.async_respond = AsyncMock(return_value=HermesResponse(response_id="id", text="ok"))
         clients.append(client)
         return client
 

@@ -20,8 +20,7 @@ from .client import (
 
 _AUTH_ERROR = "Hermes requiere autenticación."
 _INDETERMINATE_ERROR = (
-    "No se pudo confirmar el resultado. "
-    "Revisa el estado antes de intentarlo de nuevo."
+    "No se pudo confirmar el resultado. Revisa el estado antes de intentarlo de nuevo."
 )
 _INVALID_ERROR = "La solicitud no es válida."
 _UNAVAILABLE_ERROR = "Hermes no está disponible."
@@ -73,9 +72,7 @@ class HermesConversationEntity(conversation.ConversationEntity):
             self._entry.async_start_reauth(self.hass)
             response.async_set_error(intent.IntentResponseErrorCode.UNKNOWN, _AUTH_ERROR)
         except HermesIndeterminateError:
-            response.async_set_error(
-                intent.IntentResponseErrorCode.UNKNOWN, _INDETERMINATE_ERROR
-            )
+            response.async_set_error(intent.IntentResponseErrorCode.UNKNOWN, _INDETERMINATE_ERROR)
         except HermesClientError:
             response.async_set_error(intent.IntentResponseErrorCode.UNKNOWN, _UNAVAILABLE_ERROR)
         except ValueError:
