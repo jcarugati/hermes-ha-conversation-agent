@@ -113,8 +113,14 @@ Only an allowlisted request DTO (`input`, opaque `conversation`, declared model/
   policy; public and unclassified HTTP hosts are rejected.
 - Numeric deadlines and limits reject booleans, non-finite/non-positive values, and
   wrong types; client error representations never include the configured URL/token.
-- Real loopback aiohttp tests cover redirect refusal, cookie non-forwarding/refusal,
-  TLS non-downgrade, body-read timeout, cancellation, and exactly-one POST dispatch.
+- Real loopback aiohttp tests cover redirect refusal (including bearer presence only on
+  the refused initial request), cookie non-forwarding/refusal, rejection of an ephemeral
+  self-signed certificate under aiohttp's normal trust validation, TLS non-downgrade,
+  body-read timeout, cancellation, and exactly-one POST dispatch. Connect-timeout
+  classification is exercised through a real `ClientSession` and asynchronous connector
+  lifecycle whose connection establishment is deliberately stalled; this deterministic
+  boundary proves aiohttp's connect deadline and the client's pre-dispatch classification
+  without relying on environment-specific routing behavior for an unroutable address.
 - A selected Assist pipeline successfully receives and speaks a Hermes response.
 - Two different Assist conversation IDs do not share context.
 - Network failure, invalid auth, malformed API data, timeout, and Hermes tool failure return short, safe spoken failures rather than throwing an unhandled exception.

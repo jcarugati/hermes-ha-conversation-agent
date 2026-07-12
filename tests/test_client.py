@@ -3,13 +3,21 @@
 from __future__ import annotations
 
 import asyncio
+import datetime
+import ipaddress
 import json
 import math
+import ssl
+from pathlib import Path
 from typing import Any, cast
 
 import aiohttp
 import pytest
 from aiohttp import web
+from cryptography import x509
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.x509.oid import NameOID
 from yarl import URL
 
 from custom_components.hermes_conversation.client import (
@@ -448,6 +456,7 @@ async def test_real_aiohttp_redirect_does_not_forward_bearer_or_cookie(
             with pytest.raises(HermesProtocolError, match="HTTP 307"):
                 await client.async_capabilities()
             assert len(captured) == 1
+            assert captured[0]["Authorization"] == "Bearer fixture-secret"
             assert "Cookie" not in captured[0] or captured[0]["Cookie"] == ""
     finally:
         await runner.cleanup()
@@ -547,6 +556,107 @@ async def test_real_aiohttp_https_never_downgrades_to_plaintext(unused_tcp_port:
                 await client.async_capabilities()
     finally:
         await runner.cleanup()
+
+
+async def test_real_aiohttp_https_rejects_ephemeral_untrusted_certificate(
+    tmp_path: Path, unused_tcp_port: int
+) -> None:
+    private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    subject = issuer = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "127.0.0.1")])
+    now = datetime.datetime.now(datetime.UTC)
+    certificate = (
+        x509.CertificateBuilder()
+        .subject_name(subject)
+        .issuer_name(issuer)
+        .public_key(private_key.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(now - datetime.timedelta(minutes=1))
+        .not_valid_after(now + datetime.timedelta(minutes=5))
+        .add_extension(
+            x509.SubjectAlternativeName([x509.IPAddress(ipaddress.ip_address("127.0.0.1"))]),
+            critical=False,
+        )
+        .sign(private_key, hashes.SHA256())
+    )
+    cert_path = tmp_path / "untrusted-cert.pem"
+    key_path = tmp_path / "untrusted-key.pem"
+    cert_path.write_bytes(certificate.public_bytes(serialization.Encoding.PEM))
+    key_path.write_bytes(
+        private_key.private_bytes(
+            serialization.Encoding.PEM,
+            serialization.PrivateFormat.PKCS8,
+            serialization.NoEncryption(),
+        )
+    )
+    server_ssl = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    server_ssl.load_cert_chain(cert_path, key_path)
+    requests = 0
+
+    async def capabilities_handler(request: web.Request) -> web.Response:
+        nonlocal requests
+        requests += 1
+        return web.json_response(capabilities())
+
+    app = web.Application()
+    app.router.add_get("/v1/capabilities", capabilities_handler)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "127.0.0.1", unused_tcp_port, ssl_context=server_ssl)
+    loop = asyncio.get_running_loop()
+    previous_exception_handler = loop.get_exception_handler()
+
+    def ignore_expected_rejected_tls_handshake(
+        current_loop: asyncio.AbstractEventLoop, context: dict[str, Any]
+    ) -> None:
+        if isinstance(context.get("exception"), ConnectionResetError):
+            return
+        if previous_exception_handler is not None:
+            previous_exception_handler(current_loop, context)
+        else:
+            current_loop.default_exception_handler(context)
+
+    loop.set_exception_handler(ignore_expected_rejected_tls_handshake)
+    await site.start()
+    try:
+        async with aiohttp.ClientSession() as session:
+            client = HermesClient(session, f"https://127.0.0.1:{unused_tcp_port}", "fixture-secret")
+            with pytest.raises(HermesClientError, match="before dispatch") as raised:
+                await client.async_capabilities()
+            assert isinstance(raised.value.__context__, aiohttp.ClientConnectorCertificateError)
+            assert requests == 0
+    finally:
+        await runner.cleanup()
+        await asyncio.sleep(0)
+        loop.set_exception_handler(previous_exception_handler)
+
+
+async def test_real_aiohttp_async_connector_connect_timeout_is_predispatch() -> None:
+    class StalledConnector(aiohttp.TCPConnector):
+        attempts = 0
+
+        async def _create_connection(
+            self,
+            req: Any,
+            traces: Any,
+            timeout: Any,  # noqa: ASYNC109
+        ) -> Any:
+            del req, traces, timeout
+            self.attempts += 1
+            await asyncio.get_running_loop().create_future()
+
+    connector = StalledConnector()
+    async with aiohttp.ClientSession(connector=connector) as session:
+        client = HermesClient(
+            session,
+            "https://127.0.0.1:1",
+            "fixture-secret",
+            connect_timeout=0.01,
+            total_timeout=1,
+        )
+        with pytest.raises(HermesClientError, match="connect timed out") as raised:
+            await client.async_capabilities()
+        assert not isinstance(raised.value, HermesIndeterminateError)
+        assert connector.attempts == 1
 
 
 def test_client_uses_only_injected_session() -> None:
