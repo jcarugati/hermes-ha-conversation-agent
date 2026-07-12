@@ -1,19 +1,23 @@
 # Architecture
 
-## Current compatibility spike
+## Current installable compatibility spike
 
 The code currently present is not the bridge described in the remaining sections. It
-is a deliberately minimal compatibility spike for Home Assistant Core 2026.7.1. During
-setup it adds one `ConversationEntity` to Home Assistant's conversation entity
-component. Home Assistant passes `ConversationInput` and creates the required
-`ChatLog`; the spike does not inspect, log, persist, or forward their transcript
-content. It returns a fixed `query_answer` with no successful or failed action targets.
+is a deliberately minimal, YAML-loadable compatibility spike for Home Assistant Core
+2026.7.1. The versioned manifest makes the copied custom-component package
+recognizable to Home Assistant; root `hacs.json` metadata makes the repository
+recognizable as a HACS custom integration repository. Neither mechanism publishes a
+release or adds configuration behavior. During setup it adds one `ConversationEntity`
+to Home Assistant's conversation entity component. Home Assistant passes
+`ConversationInput` and creates the required `ChatLog`; the spike does not inspect,
+log, persist, or forward their transcript content. It returns a fixed `query_answer`
+with no successful or failed action targets.
 
 The spike contains no network client, Hermes configuration, capability validation,
 conversation state, cache, TTL, serialization, diagnostics, config flow, or tools.
 Its HA-backed registration and `async_converse` test is evidence for this narrow API
-shape only, not for installation, Assist/Voice pipelines, Hermes interoperability, or
-production readiness.
+shape and minimal package layout only, not for production installation lifecycle,
+Assist/Voice pipelines, Hermes interoperability, or production readiness.
 
 The implemented `safety` module is an HA-local prototype declaration, not a production
 boundary. It contains one immutable read-only/status request type and exposes no
