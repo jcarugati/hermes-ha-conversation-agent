@@ -4,8 +4,16 @@ from collections.abc import Generator
 from pathlib import Path
 
 import pytest
+import pytest_socket
 
 pytest_plugins = "pytest_homeassistant_custom_component"
+
+
+@pytest.fixture(autouse=True)
+def loopback_socket_guard() -> None:
+    """Permit only loopback TCP plus the Unix sockets asyncio requires."""
+    pytest_socket.enable_socket()
+    pytest_socket.socket_allow_hosts(["127.0.0.1"], allow_unix_socket=True)
 
 
 @pytest.fixture(autouse=True)
