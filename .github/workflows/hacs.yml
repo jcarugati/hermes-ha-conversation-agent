@@ -14,3 +14,6 @@ jobs:
         uses: hacs/action@main
         with:
           category: integration
+          # External publishing metadata is deferred while this remains an
+          # unpublished developer skeleton; package and manifest checks stay enabled.
+          ignore: "brands topics license"
