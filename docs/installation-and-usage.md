@@ -1,6 +1,6 @@
 # Installation and usage
 
-> **Current status:** this is the target workflow for the upcoming implementation. The component is not published or installable yet.
+> **Current status:** the Hermes HTTP contract verifier is implemented, but its strengthened checks await a fresh live run and the Home Assistant component is not published or installable yet.
 
 ## Prerequisites
 
@@ -8,7 +8,8 @@
 - Hermes Agent with a configured model and any desired toolsets.
 - Network reachability from the Home Assistant host to the Hermes API through a **private** path.
 - A dedicated bearer token for Hermes API access.
-- A supported Home Assistant release and Hermes release, to be pinned by the v0.1 compatibility matrix.
+- A Hermes Agent version that advertises and passes the committed contract verifier. No minimum version is pinned yet.
+- A supported Home Assistant release, still to be pinned by the v0.1 compatibility matrix.
 
 ## 1. Enable Hermes API server
 
@@ -20,18 +21,21 @@ API_SERVER_ENABLED=true
 API_SERVER_KEY=<generate-a-long-random-secret>
 ```
 
-Restart Hermes Gateway. Hermes documents its API server on loopback at `http://127.0.0.1:8642` by default.
+Restart Hermes Gateway. Use the base URL configured for your deployment; this repository has not verified a default bind address or port.
 
 Verify locally first:
 
 ```bash
-curl http://127.0.0.1:8642/health
-# Expected: {"status":"ok"}
+curl "$HERMES_BASE_URL/health"
+# Expected fields: status="ok", platform="hermes-agent", non-empty version
 
-curl http://127.0.0.1:8642/v1/capabilities \
+curl "$HERMES_BASE_URL/v1/capabilities" \
   -H "Authorization: Bearer $API_SERVER_KEY"
-# Expected: auth.required=true and features.responses_api=true
+# Expected: auth.type="bearer", auth.required=true,
+# features.responses_api=true, and a non-empty model
 ```
+
+Contributors can run the deterministic and explicitly gated live contract checks described in [`hermes-responses-contract.md`](hermes-responses-contract.md). Do not put the real token or private URL in repository files or command output.
 
 ## 2. Provide private connectivity
 

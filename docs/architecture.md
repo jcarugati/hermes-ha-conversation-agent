@@ -9,7 +9,7 @@
 ```text
 Voice device → Home Assistant Assist STT
   → ConversationEntity.async_process(input, chat_log)
-  → request DTO { input, opaque_conversation, model/options }
+  → request DTO { model, input, conversation, stream: false }
   → private authenticated HTTPS connection
   → Hermes POST /v1/responses
   → Hermes runs its own configured tools
@@ -32,11 +32,15 @@ The component is an asynchronous HTTP client and Conversation entity—not a gen
 
 Hermes holds its own model/tool configuration and, if smart-home control is enabled, a separate Home Assistant credential. Hermes owns stateful named conversation history. The bridge must use an opaque conversation key, not a raw HA identifier.
 
+The committed verifier obtains the request `model` from authenticated `/v1/capabilities`, requires `features.responses_api: true`, and tests state across two requests carrying the same fresh opaque `conversation`. Its strengthened checks await a fresh live run; the exact requirements and evidence limitations are in [`hermes-responses-contract.md`](hermes-responses-contract.md).
+
 ## Conversation state
 
 The component maps each incoming HA conversation to a locally held opaque key. Requests for the same key run serially. Entries have an idle TTL and a maximum cache size. Reset/unload removes mappings locally; the exact Hermes-side deletion contract must be tested and documented before claiming hard deletion.
 
 Only Hermes holds dialogue history. The HA `ChatLog` is not sent to avoid duplicating turns and leaking more transcript context than necessary.
+
+The verifier does not establish Hermes retention capacity or durability. Continuity is useful state, not assumed durable storage. A missing/forgotten conversation must fail safely or begin fresh without mixing keys.
 
 ## Failure behavior
 
@@ -54,6 +58,6 @@ v0.1 does not expose high-impact actions through this component until Hermes has
 
 ## Network deployment
 
-Hermes’s API server normally listens on loopback. A user should make it reachable to Home Assistant only over a private path—such as a LAN reverse proxy or Tailscale—with TLS where possible. It must not be directly Internet-accessible.
+A user should make Hermes reachable to Home Assistant only over a private path—such as a LAN reverse proxy or Tailscale—with TLS where possible. The verifier does not establish a default Hermes bind address. The API must not be directly Internet-accessible.
 
 HTTP can be necessary on a trusted isolated LAN, but is an explicit opt-in because it exposes bearer tokens and voice text to the network.
