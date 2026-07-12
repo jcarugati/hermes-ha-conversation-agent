@@ -13,14 +13,15 @@ tools. This integration remains a thin adapter to the verified Responses API.
 ## Current status
 
 **UI-configurable foundation, not a usable Hermes conversation agent.** Home Assistant
-can create one config entry per normalized Hermes base URL, validate `/health` and the
+can create one config entry per canonical Hermes endpoint identity, validate `/health` and the
 authenticated `responses_api` capability before saving, rotate the bearer token by
 reauthentication, change bounded non-secret request limits, reload entries, and retry
 setup when Hermes is unavailable. Every setup repeats validation and stores a client
 using Home Assistant's shared asynchronous HTTP session.
 
-Configuration is UI-only. HTTPS is the default; permitted local/private HTTP requires
-a separate operator acknowledgement. Credentials stay in config-entry data, while the
+Configuration is UI-only. HTTPS is the default; every user, import, reauthentication,
+and options flow involving permitted local/private HTTP requires a separate operator
+acknowledgement. Credentials stay in config-entry data, while the
 options flow contains only connect timeout, total timeout, and maximum output length.
 
 This task deliberately adds no `ConversationEntity`, request bridge, conversation
@@ -49,10 +50,11 @@ request/tool sink.
 
 ## Implemented lifecycle
 
-- UI-only URL/token config flow with normalized URL unique ID and duplicate prevention.
-- Separate warning and affirmative acknowledgement for permitted plaintext HTTP.
+- UI-only URL/token config flow with canonical URL unique ID and atomic duplicate prevention.
+- Canonical DNS/IDN/IP endpoint identity across case, trailing dots, default ports, and IPv6 spelling.
+- Separate warning and affirmative acknowledgement in every permitted plaintext HTTP flow.
 - Flow-time and setup-time health, authentication, endpoint, and capability validation.
-- Token-only reauthentication with validation and reload.
+- Token-only reauthentication with validation and reload; setup-time 401/403 starts reauth.
 - Non-secret bounded options with automatic reload.
 - Retryable unavailable-server setup, fresh validation on reload, and clean unload.
 - No coordinator, periodic polling, diagnostics, conversation behavior, tools, or actions.

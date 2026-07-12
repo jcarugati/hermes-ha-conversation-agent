@@ -8,7 +8,10 @@ from pytest_homeassistant_custom_component.common import (  # type: ignore[impor
     MockConfigEntry,
 )
 
-from custom_components.hermes_conversation.client import HermesClientError
+from custom_components.hermes_conversation.client import (
+    HermesAuthenticationError,
+    HermesClientError,
+)
 from custom_components.hermes_conversation.const import (
     CONF_ALLOW_INSECURE_HTTP,
     CONF_TOKEN,
@@ -55,6 +58,27 @@ async def test_unavailable_setup_raises_not_ready(hass: HomeAssistant) -> None:
     ):
         assert not await hass.config_entries.async_setup(entry.entry_id)
     assert entry.state is ConfigEntryState.SETUP_RETRY
+
+
+async def test_authentication_rejection_starts_reauth(hass: HomeAssistant) -> None:
+    """Stored 401/403 credentials enter Home Assistant's reauth lifecycle."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="https://hermes.example.test",
+        data={CONF_URL: "https://hermes.example.test", CONF_TOKEN: "expired"},
+    )
+    entry.add_to_hass(hass)
+
+    with patch(
+        "custom_components.hermes_conversation.async_validate_connection",
+        new=AsyncMock(side_effect=HermesAuthenticationError("HTTP 401")),
+    ):
+        assert not await hass.config_entries.async_setup(entry.entry_id)
+
+    assert entry.state is ConfigEntryState.SETUP_ERROR
+    flows = hass.config_entries.flow.async_progress_by_handler(DOMAIN)
+    assert len(flows) == 1
+    assert flows[0]["context"]["source"] == "reauth"
 
 
 async def test_unload_clears_runtime_and_reload_revalidates(hass: HomeAssistant) -> None:

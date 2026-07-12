@@ -3,17 +3,19 @@
 ## Current config-entry foundation
 
 The current code is not the bridge described below. It implements a UI-only config
-flow and complete entry lifecycle around the narrow Hermes client. The user step
-normalizes a base URL, prevents duplicates by normalized URL, stores the bearer token
+flow and complete entry lifecycle around the narrow Hermes client. Credential flows
+canonicalize a base URL, atomically prevent duplicates by canonical identity, store the bearer token
 in config-entry data, and validates health plus the authenticated Responses API
-capability before saving. Permitted HTTP requires a distinct acknowledgement step.
+capability before saving. Permitted HTTP requires a distinct acknowledgement in user,
+import, reauthentication, and options flows.
 
 Every setup independently reconstructs a client from entry data and bounded
 non-secret options, injects Home Assistant's shared asynchronous HTTP session, and
 repeats health/capability validation. Unavailable endpoints raise
-`ConfigEntryNotReady`; reload repeats setup and unload releases runtime state without
+`ConfigEntryNotReady`; authentication rejection raises `ConfigEntryAuthFailed` so Home
+Assistant starts reauthentication. Reload repeats setup and unload releases runtime state without
 closing the shared session. Reauthentication rotates only the token and reloads after
-validation. Options contain only connect timeout, total timeout, and maximum output
+validation; failure preserves the old token and performs no reload. Options contain only connect timeout, total timeout, and maximum output
 length and reload on change.
 
 There is no coordinator, periodic polling, diagnostics, Conversation entity, request

@@ -19,8 +19,10 @@ Conversation Agent**.
 ## Configure Hermes
 
 Enter a private Hermes base URL with no credentials, path, query, or fragment, plus a
-dedicated bearer token. The flow normalizes the URL and uses it as the entry's unique
-ID, so equivalent URL spellings cannot create duplicates.
+dedicated bearer token. The flow canonicalizes DNS case and trailing dots, Unicode IDNs
+to punycode, IPv6 text, and default ports, then uses that identity as the entry's unique
+ID. Home Assistant's in-progress reservation prevents equivalent concurrent flows from
+creating duplicates. Non-root paths, including encoded variants, are rejected.
 
 Before saving, the flow validates `GET /health` and authenticated
 `GET /v1/capabilities`, including `responses_api`, bearer-required authentication, and
@@ -29,14 +31,18 @@ Hermes is unavailable, Home Assistant keeps the entry retryable instead of loadi
 unvalidated runtime state.
 
 HTTPS is accepted by default. Plaintext HTTP is restricted to the documented
-local/private/Tailscale host allowlist and opens a separate acknowledgement step. The
-warning explains that the bearer token and future request data would be visible on the
-network. Acknowledgement does not weaken the host allowlist.
+local/private/Tailscale host allowlist and opens a separate acknowledgement step. User,
+import, reauthentication, and options flows each require acknowledgement before making
+an HTTP validation request or accepting changes. The warning explains that the bearer
+token and future request data would be visible on the network. Acknowledgement does not
+weaken the host allowlist.
 
 ## Maintain an entry
 
 - Reauthentication accepts only a replacement token, validates it against the fixed
-  endpoint, updates the entry, and reloads it.
+  endpoint, updates the entry, and reloads it. An HTTP 401 or 403 during setup starts
+  Home Assistant reauthentication. A failed replacement leaves stored data unchanged
+  and does not reload the entry.
 - **Configure** changes connect timeout, total timeout, and maximum output characters.
   Options never expose the URL or token and automatically reload the entry when saved.
 - Reload reconstructs and revalidates a fresh client. Unload releases entry-owned

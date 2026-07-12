@@ -1,14 +1,18 @@
 """Tests for the UI-only Hermes config and options flows."""
 
+import asyncio
 from unittest.mock import AsyncMock, patch
 
-from homeassistant.config_entries import SOURCE_REAUTH, SOURCE_USER
+from homeassistant.config_entries import SOURCE_IMPORT, SOURCE_REAUTH, SOURCE_USER
 from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import (  # type: ignore[import-untyped]
     MockConfigEntry,
 )
 
-from custom_components.hermes_conversation.client import HermesClientError
+from custom_components.hermes_conversation.client import (
+    HermesAuthenticationError,
+    HermesClientError,
+)
 from custom_components.hermes_conversation.const import (
     CONF_ALLOW_INSECURE_HTTP,
     CONF_CONNECT_TIMEOUT,
@@ -129,6 +133,88 @@ async def test_duplicate_normalized_url_is_rejected(hass: HomeAssistant) -> None
     assert result["reason"] == "already_configured"
 
 
+async def test_duplicate_legacy_noncanonical_entry_is_rejected(hass: HomeAssistant) -> None:
+    """Canonical comparison also covers entries stored before canonical identities."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="https://HERMES.Example.Test.:443",
+        data={CONF_URL: "https://HERMES.Example.Test.:443", CONF_TOKEN: "old"},
+    )
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": SOURCE_USER},
+        data={CONF_URL: "https://hermes.example.test", CONF_TOKEN: "new"},
+    )
+    assert result["type"] == "abort"
+    assert result["reason"] == "already_configured"
+
+
+async def test_duplicate_prevention_is_atomic_across_concurrent_flows(
+    hass: HomeAssistant,
+) -> None:
+    """An in-progress canonical identity reserves the endpoint for one flow."""
+    validation_started = asyncio.Event()
+    release_validation = asyncio.Event()
+
+    async def validate(*args: object) -> None:
+        del args
+        validation_started.set()
+        await release_validation.wait()
+
+    with patch(
+        "custom_components.hermes_conversation.config_flow.async_validate_connection",
+        side_effect=validate,
+    ):
+        first = asyncio.create_task(
+            hass.config_entries.flow.async_init(
+                DOMAIN,
+                context={"source": SOURCE_USER},
+                data={
+                    CONF_URL: "https://B\N{LATIN SMALL LETTER U WITH DIAERESIS}CHER.example.:443/",
+                    CONF_TOKEN: "first",
+                },
+            )
+        )
+        await validation_started.wait()
+        second = await hass.config_entries.flow.async_init(
+            DOMAIN,
+            context={"source": SOURCE_USER},
+            data={CONF_URL: "https://xn--bcher-kva.example", CONF_TOKEN: "second"},
+        )
+        release_validation.set()
+        first_result = await first
+
+    assert first_result["type"] == "create_entry"
+    assert second["type"] == "abort"
+    assert second["reason"] == "already_in_progress"
+    assert len(hass.config_entries.async_entries(DOMAIN)) == 1
+
+
+async def test_import_http_requires_acknowledgement(hass: HomeAssistant) -> None:
+    """Imported plaintext credentials cannot validate before acknowledgement."""
+    with patch(
+        "custom_components.hermes_conversation.config_flow.async_validate_connection",
+        new=AsyncMock(),
+    ) as validate:
+        result = await hass.config_entries.flow.async_init(
+            DOMAIN,
+            context={"source": SOURCE_IMPORT},
+            data={CONF_URL: "http://127.0.0.1:8124", CONF_TOKEN: "secret"},
+        )
+        assert result["type"] == "form"
+        assert result["step_id"] == "http_acknowledgement"
+        validate.assert_not_awaited()
+
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], {"acknowledge_insecure_http": True}
+        )
+
+    assert result["type"] == "create_entry"
+    validate.assert_awaited_once()
+
+
 async def test_reauth_validates_token_then_updates_and_reloads(hass: HomeAssistant) -> None:
     """Reauth rotates only the secret and reloads the existing entry."""
     entry = MockConfigEntry(
@@ -171,6 +257,79 @@ async def test_reauth_validates_token_then_updates_and_reloads(hass: HomeAssista
     reload_entry.assert_called_once_with(entry.entry_id)
 
 
+async def test_failed_reauth_preserves_old_data_and_does_not_reload(
+    hass: HomeAssistant,
+) -> None:
+    """Rejected replacement credentials never mutate or reload the entry."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="https://hermes.example.test",
+        data={CONF_URL: "https://hermes.example.test", CONF_TOKEN: "old"},
+    )
+    entry.add_to_hass(hass)
+
+    with (
+        patch(
+            "custom_components.hermes_conversation.config_flow.async_validate_connection",
+            new=AsyncMock(side_effect=HermesAuthenticationError("HTTP 403")),
+        ),
+        patch.object(hass.config_entries, "async_schedule_reload") as reload_entry,
+    ):
+        result = await hass.config_entries.flow.async_init(
+            DOMAIN,
+            context={"source": SOURCE_REAUTH, "entry_id": entry.entry_id},
+            data=entry.data,
+        )
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], {CONF_TOKEN: "rejected"}
+        )
+
+    assert result["type"] == "form"
+    assert result["step_id"] == "reauth_confirm"
+    assert result["errors"] == {"base": "invalid_auth"}
+    assert entry.data[CONF_TOKEN] == "old"
+    reload_entry.assert_not_called()
+
+
+async def test_reauth_http_requires_acknowledgement_before_validation(
+    hass: HomeAssistant,
+) -> None:
+    """Token rotation against HTTP has its own explicit acknowledgement gate."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="http://127.0.0.1:8124",
+        data={
+            CONF_URL: "http://127.0.0.1:8124",
+            CONF_TOKEN: "old",
+            CONF_ALLOW_INSECURE_HTTP: True,
+        },
+    )
+    entry.add_to_hass(hass)
+
+    with patch(
+        "custom_components.hermes_conversation.config_flow.async_validate_connection",
+        new=AsyncMock(),
+    ) as validate:
+        result = await hass.config_entries.flow.async_init(
+            DOMAIN,
+            context={"source": SOURCE_REAUTH, "entry_id": entry.entry_id},
+            data=entry.data,
+        )
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], {CONF_TOKEN: "rotated"}
+        )
+        assert result["step_id"] == "http_acknowledgement"
+        validate.assert_not_awaited()
+
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], {"acknowledge_insecure_http": True}
+        )
+
+    assert result["reason"] == "reauth_successful"
+    assert entry.data[CONF_TOKEN] == "rotated"
+    validate.assert_awaited_once()
+
+
 async def test_options_are_non_secret_and_reload_entry(hass: HomeAssistant) -> None:
     """Options expose bounded runtime limits but never credentials."""
     entry = MockConfigEntry(
@@ -207,3 +366,34 @@ async def test_options_are_non_secret_and_reload_entry(hass: HomeAssistant) -> N
         CONF_MAX_OUTPUT_CHARS: 4096,
     }
     reload_entry.assert_called_once_with(entry.entry_id)
+
+
+async def test_http_options_require_acknowledgement_before_changes(
+    hass: HomeAssistant,
+) -> None:
+    """Options for a plaintext endpoint cannot be changed without acknowledgement."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_URL: "http://127.0.0.1:8124",
+            CONF_TOKEN: "secret",
+            CONF_ALLOW_INSECURE_HTTP: True,
+        },
+    )
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    assert result["type"] == "form"
+    assert result["step_id"] == "http_acknowledgement"
+
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"acknowledge_insecure_http": False}
+    )
+    assert result["errors"] == {"base": "http_not_acknowledged"}
+    assert entry.options == {}
+
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"acknowledge_insecure_http": True}
+    )
+    assert result["type"] == "form"
+    assert result["step_id"] == "init"

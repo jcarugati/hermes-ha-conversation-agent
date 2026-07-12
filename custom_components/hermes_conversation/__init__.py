@@ -6,10 +6,10 @@ from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ConfigEntryNotReady
+from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-from .client import HermesClient, HermesClientError
+from .client import HermesAuthenticationError, HermesClient, HermesClientError
 from .const import (
     CONF_ALLOW_INSECURE_HTTP,
     CONF_CONNECT_TIMEOUT,
@@ -50,6 +50,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: HermesConfigEntry) -> bo
     try:
         client = create_client(hass, entry)
         await async_validate_connection(hass, client)
+    except HermesAuthenticationError as err:
+        raise ConfigEntryAuthFailed("Hermes rejected stored authentication") from err
     except (HermesClientError, ValueError) as err:
         raise ConfigEntryNotReady("Hermes endpoint validation failed") from err
     entry.runtime_data = client
