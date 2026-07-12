@@ -14,9 +14,7 @@ from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 DEFAULT_MAX_RESPONSE_BYTES = 1_048_576
 CONTRACT_INPUT = "Inert continuity marker: {marker}. Reply only: acknowledged."
-CONTRACT_FOLLOW_UP = (
-    "Reply only with the inert continuity marker from the preceding message."
-)
+CONTRACT_FOLLOW_UP = "Reply only with the inert continuity marker from the preceding message."
 
 
 class ContractError(RuntimeError):
@@ -49,9 +47,7 @@ def _endpoint(base_url: str, path: str) -> str:
     if parsed.scheme not in {"http", "https"} or not parsed.hostname:
         raise ContractError("base URL must use http or https and include a host")
     if parsed.username or parsed.password or parsed.query or parsed.fragment:
-        raise ContractError(
-            "base URL must not contain credentials, query values, or fragments"
-        )
+        raise ContractError("base URL must not contain credentials, query values, or fragments")
     base_path = parsed.path.rstrip("/")
     return urlunsplit((parsed.scheme, parsed.netloc, f"{base_path}{path}", "", ""))
 
@@ -94,9 +90,7 @@ def _json_request(
     if content_type != "application/json":
         raise ContractError(f"{method} {path} returned unexpected content type")
     if len(raw) > max_response_bytes:
-        raise ContractError(
-            f"{method} {path} response exceeds {max_response_bytes} bytes"
-        )
+        raise ContractError(f"{method} {path} response exceeds {max_response_bytes} bytes")
     try:
         payload = json.loads(raw)
     except (UnicodeDecodeError, json.JSONDecodeError):
@@ -135,9 +129,7 @@ def _output_text(payload: dict[str, Any]) -> str:
                 or not isinstance(content.get("text"), str)
                 or not content["text"]
             ):
-                raise ContractError(
-                    "/v1/responses content items must be non-empty output_text"
-                )
+                raise ContractError("/v1/responses content items must be non-empty output_text")
             parts.append(content["text"])
     return "\n".join(parts)
 
@@ -216,18 +208,11 @@ def verify_contract(
         or auth.get("type") != "bearer"
         or auth.get("required") is not True
     ):
-        raise ContractError(
-            "/v1/capabilities does not advertise required bearer authentication"
-        )
+        raise ContractError("/v1/capabilities does not advertise required bearer authentication")
     endpoints = capabilities.get("endpoints")
     expected_response_endpoint = {"method": "POST", "path": "/v1/responses"}
-    if (
-        not isinstance(endpoints, dict)
-        or endpoints.get("responses") != expected_response_endpoint
-    ):
-        raise ContractError(
-            "/v1/capabilities does not advertise the required responses endpoint"
-        )
+    if not isinstance(endpoints, dict) or endpoints.get("responses") != expected_response_endpoint:
+        raise ContractError("/v1/capabilities does not advertise the required responses endpoint")
     model = _required_string(capabilities, "model", "/v1/capabilities")
 
     response, _response_type = _json_request(
@@ -246,9 +231,7 @@ def verify_contract(
     )
     response_id, response_text = _completed_response(response, model)
     if response_text.strip() != "acknowledged":
-        raise ContractError(
-            "/v1/responses did not acknowledge the inert continuity probe"
-        )
+        raise ContractError("/v1/responses did not acknowledge the inert continuity probe")
 
     follow_up, follow_up_type = _json_request(
         opener,
@@ -268,9 +251,7 @@ def verify_contract(
     if follow_up_id == response_id:
         raise ContractError("/v1/responses reused an id across distinct turns")
     if follow_up_text.strip() != marker:
-        raise ContractError(
-            "named conversation continuity did not return the run-scoped marker"
-        )
+        raise ContractError("named conversation continuity did not return the run-scoped marker")
 
     return ContractEvidence(
         hermes_version=version,

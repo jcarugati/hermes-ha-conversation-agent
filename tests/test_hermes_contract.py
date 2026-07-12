@@ -73,9 +73,7 @@ class _HermesFixture(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(body)
         elif self.path == "/health":
-            self._json(
-                200, {"status": "ok", "platform": "hermes-agent", "version": "0.18.2"}
-            )
+            self._json(200, {"status": "ok", "platform": "hermes-agent", "version": "0.18.2"})
         elif self.path == "/v1/capabilities":
             self._json(
                 200,
@@ -85,9 +83,7 @@ class _HermesFixture(BaseHTTPRequestHandler):
                     "model": "fixture-model",
                     "auth": {"type": "bearer", "required": True},
                     "features": {"responses_api": True},
-                    "endpoints": {
-                        "responses": {"method": "POST", "path": "/v1/responses"}
-                    },
+                    "endpoints": {"responses": {"method": "POST", "path": "/v1/responses"}},
                 },
             )
         else:
@@ -99,9 +95,7 @@ class _HermesFixture(BaseHTTPRequestHandler):
         type(self).post_count += 1
         request = json.loads(body)
         conversation = request["conversation"]
-        marker_match = re.search(
-            r"continuity marker: ([A-Za-z0-9_-]+)", request["input"]
-        )
+        marker_match = re.search(r"continuity marker: ([A-Za-z0-9_-]+)", request["input"])
         if marker_match:
             self.markers[conversation] = marker_match.group(1)
             text = "acknowledged"
@@ -237,9 +231,7 @@ class ContractTest(unittest.TestCase):
                         "model": "m",
                         "auth": {"type": "bearer", "required": False},
                         "features": {"responses_api": True},
-                        "endpoints": {
-                            "responses": {"method": "POST", "path": "/v1/responses"}
-                        },
+                        "endpoints": {"responses": {"method": "POST", "path": "/v1/responses"}},
                     },
                 )
             else:
@@ -281,9 +273,7 @@ class ContractTest(unittest.TestCase):
 
         def invalid_content(handler: _HermesFixture) -> None:
             if _HermesFixture.post_count == 0:
-                body = handler.rfile.read(
-                    int(handler.headers.get("Content-Length", "0"))
-                )
+                body = handler.rfile.read(int(handler.headers.get("Content-Length", "0")))
                 handler._record(body)
                 type(handler).post_count += 1
                 handler._json(
@@ -321,9 +311,7 @@ class ContractTest(unittest.TestCase):
 
         def missing_usage(handler: _HermesFixture) -> None:
             if _HermesFixture.post_count == 0:
-                body = handler.rfile.read(
-                    int(handler.headers.get("Content-Length", "0"))
-                )
+                body = handler.rfile.read(int(handler.headers.get("Content-Length", "0")))
                 handler._record(body)
                 type(handler).post_count += 1
                 handler._json(
@@ -337,9 +325,7 @@ class ContractTest(unittest.TestCase):
                             {
                                 "type": "message",
                                 "role": "assistant",
-                                "content": [
-                                    {"type": "output_text", "text": "acknowledged"}
-                                ],
+                                "content": [{"type": "output_text", "text": "acknowledged"}],
                             }
                         ],
                     },
@@ -368,9 +354,7 @@ class ContractTest(unittest.TestCase):
             ],
             "usage": {"input_tokens": 1, "output_tokens": 1, "total_tokens": 2},
         }
-        mutations: tuple[
-            tuple[str, Callable[[dict[str, Any]], object]], ...
-        ] = (
+        mutations: tuple[tuple[str, Callable[[dict[str, Any]], object]], ...] = (
             ("message type", lambda payload: payload["output"][0].pop("type")),
             ("message role", lambda payload: payload["output"][0].pop("role")),
             (
@@ -415,9 +399,7 @@ class ContractTest(unittest.TestCase):
             if request["method"] == "POST"
         ]
 
-        self.assertNotEqual(
-            first_posts[0]["conversation"], second_posts[0]["conversation"]
-        )
+        self.assertNotEqual(first_posts[0]["conversation"], second_posts[0]["conversation"])
         self.assertNotEqual(first_posts[0]["input"], second_posts[0]["input"])
 
     @pytest.mark.allow_hosts(["127.0.0.1"])
@@ -508,9 +490,7 @@ class ContractTest(unittest.TestCase):
             {names[0]: "1", names[1]: "https://example.invalid", names[2]: "secret"},
             clear=True,
         ):
-            self.assertEqual(
-                live_config_from_env(), ("https://example.invalid", "secret")
-            )
+            self.assertEqual(live_config_from_env(), ("https://example.invalid", "secret"))
 
 
 class LiveContractTest(unittest.TestCase):
@@ -521,9 +501,7 @@ class LiveContractTest(unittest.TestCase):
     def test_explicitly_configured_live_contract(self) -> None:
         config = live_config_from_env()
         if config is None:
-            self.fail(
-                "live test needs HERMES_CONTRACT_BASE_URL and HERMES_CONTRACT_TOKEN"
-            )
+            self.fail("live test needs HERMES_CONTRACT_BASE_URL and HERMES_CONTRACT_TOKEN")
         evidence = verify_contract(*config)
         self.assertTrue(evidence.hermes_version)
         self.assertTrue(evidence.model)
