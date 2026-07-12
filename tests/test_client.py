@@ -145,7 +145,10 @@ def test_http_requires_explicit_opt_in() -> None:
     ("url", "canonical"),
     [
         ("https://HERMES.Example.Test.:443/", "https://hermes.example.test"),
-        ("https://b\N{LATIN SMALL LETTER U WITH DIAERESIS}cher.example/", "https://xn--bcher-kva.example"),
+        (
+            "https://b\N{LATIN SMALL LETTER U WITH DIAERESIS}cher.example/",
+            "https://xn--bcher-kva.example",
+        ),
         ("https://XN--BCHER-KVA.EXAMPLE./", "https://xn--bcher-kva.example"),
         ("https://[2001:0DB8:0:0:0:0:0:1]:443/", "https://[2001:db8::1]"),
         ("http://[FD00:0:0:0:0:0:0:1]:80/", "http://[fd00::1]"),

@@ -201,9 +201,7 @@ class HermesConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 allow_insecure_http=entry.data.get(CONF_ALLOW_INSECURE_HTTP, False),
                 connect_timeout=entry.options.get(CONF_CONNECT_TIMEOUT, DEFAULT_CONNECT_TIMEOUT),
                 total_timeout=entry.options.get(CONF_TOTAL_TIMEOUT, DEFAULT_TOTAL_TIMEOUT),
-                max_output_chars=entry.options.get(
-                    CONF_MAX_OUTPUT_CHARS, DEFAULT_MAX_OUTPUT_CHARS
-                ),
+                max_output_chars=entry.options.get(CONF_MAX_OUTPUT_CHARS, DEFAULT_MAX_OUTPUT_CHARS),
             )
             await async_validate_connection(self.hass, client)
         except HermesAuthenticationError:
