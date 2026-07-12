@@ -12,9 +12,10 @@ tools. This integration remains a thin adapter to the verified Responses API.
 
 ## Current status
 
-**UI-configurable Hermes conversation agent.** Home Assistant
+**UI-configurable Hermes home-gateway conversation agent.** Home Assistant
 can create one config entry per canonical Hermes endpoint identity, validate `/health` and the
-authenticated `responses_api` capability before saving, rotate the bearer token by
+authenticated `responses_api` capability plus the exact gateway-enforced no-tools security
+policy before saving, rotate the bearer token by
 reauthentication, change bounded non-secret request limits, reload entries, and retry
 setup when Hermes is unavailable. Every setup repeats validation, stores the client
 and validated model, and registers exactly one official Conversation entity using
@@ -31,6 +32,10 @@ For each dispatcher turn, the entity sends only the bounded utterance, setup-val
 model, and a fresh opaque conversation key to the client's fixed non-streaming
 Responses API. It ignores HA `ChatLog` history and all context, device, user, system
 prompt, and credential fields. It returns only Hermes's bounded final text for speech.
+This mode is intentionally incompatible with a generic remote Hermes server: authenticated
+`GET /v1/capabilities` must contain exactly `security: {"tool_policy":"none",
+"mcp_policy":"none","server_enforced":true}`. Missing, mismatched, or extended policy
+objects fail closed during configuration, setup, and every pre-send capability check.
 
 The deterministic Hermes contract verifier and defensive async client cover the fixed
 `/health`, `/v1/capabilities`, and `/v1/responses` surface. The strengthened verifier
@@ -43,7 +48,7 @@ still needs a fresh live run before a minimum Hermes version can be pinned.
 - Home Assistant credentials, cookies, contexts, identifiers, and `ChatLog` history are never accepted by the client request interface.
 - Transcripts and bearer tokens must never be logged.
 - A voice utterance or spoken confirmation is not authentication.
-- High-impact actions remain blocked until Hermes has an enforceable server-side pending-action protocol binding exact parameters, source conversation, and expiry.
+- The accepted home gateway server-enforces no tools or MCP; the bridge exposes no actions.
 - Dispatched requests are never automatically retried when their outcome may be unknown.
 
 The bridge exposes no tool/action request fields or execution callbacks. The inert,

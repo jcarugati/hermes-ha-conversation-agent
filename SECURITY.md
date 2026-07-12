@@ -2,7 +2,10 @@
 
 ## Security posture
 
-The proposed v0.1 production integration will bridge spoken requests from Home Assistant Assist to an agent capable of using tools. That production bridge will be a security-sensitive boundary and must prioritize a small attack surface, explicit trust boundaries, and fail-closed behavior over broad automation capability.
+The v0.1 integration bridges spoken requests only to the simple Hermes home gateway in
+its server-enforced no-tools mode. It does not support a generic remote or tool-capable
+Hermes server. This remains a security-sensitive boundary and prioritizes a small attack
+surface, explicit trust boundaries, and fail-closed behavior over broad automation.
 
 The current integration stores a Hermes URL and bearer token through Home Assistant's
 UI config-entry mechanism, validates health/authenticated capabilities in both the
@@ -16,10 +19,11 @@ HTTP 401/403 responses have a dedicated sanitized error path that starts Home
 Assistant reauthentication during setup; rejected replacement credentials do not
 overwrite the working entry or trigger a reload.
 
-The entity and client have no arbitrary tool/action field, execution callback, or generic request interface. This
-data-only shape prevents callers from adding tool definitions through the client, but
-does not attest or constrain tools configured independently on Hermes. Production
-wiring does not attest or constrain tools independently configured on Hermes.
+The entity and client have no arbitrary tool/action field, execution callback, or generic
+request interface. In addition, every authenticated capabilities validation must receive
+exactly `security: {"tool_policy":"none","mcp_policy":"none","server_enforced":true}`.
+Missing, mismatched, or extended policy objects fail closed before configuration, setup,
+or response dispatch. This is the gateway-enforced home boundary, not a prompt claim.
 
 ## Proposed security requirements for the v0.1 production bridge
 
@@ -34,6 +38,8 @@ The strengthened Hermes contract verifier has deterministic coverage but still a
 - Endpoint identity canonicalizes DNS case/trailing dots, IDN punycode, IPv6 text, and
   default ports before atomic duplicate checks; all non-root path variants are rejected.
 - No redirects on authenticated outbound requests.
+- Require the exact authenticated, server-enforced no-tools/MCP security policy during
+  configuration, setup, reload, reauthentication, and immediately before every POST.
 - Refuse an injected shared session that currently contains cookies, so Home
   Assistant cookies cannot accompany Hermes requests. The client never creates a
   private session.

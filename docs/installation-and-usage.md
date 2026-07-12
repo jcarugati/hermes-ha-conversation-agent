@@ -16,7 +16,7 @@ configuration is UI-only.
 Go to **Settings → Devices & services → Add integration** and select **Hermes
 Conversation Agent**.
 
-## Configure Hermes
+## Configure the Hermes home gateway
 
 Enter a private Hermes base URL with no credentials, path, query, or fragment, plus a
 dedicated bearer token. The flow canonicalizes DNS case and trailing dots, Unicode IDNs
@@ -26,7 +26,11 @@ creating duplicates. Non-root paths, including encoded variants, are rejected.
 
 Before saving, the flow validates `GET /health` and authenticated
 `GET /v1/capabilities`, including `responses_api`, bearer-required authentication, and
-the fixed Responses endpoint advertisement. Setup repeats the same validation. If
+the fixed Responses endpoint advertisement. It also requires the authenticated response
+to advertise exactly `security: {"tool_policy":"none","mcp_policy":"none",
+"server_enforced":true}`. This gateway-enforced home mode is not a generic remote Hermes
+server configuration; missing keys, different values, or extra policy keys are rejected.
+Setup repeats the same validation. If
 Hermes is unavailable, Home Assistant keeps the entry retryable instead of loading
 unvalidated runtime state. This includes HTTP 401/403 from the unauthenticated health
 endpoint. Only HTTP 401/403 from authenticated capabilities starts reauthentication.
@@ -67,7 +71,8 @@ If setup is retrying:
 
 1. Verify private DNS/routing and TLS trust from the Home Assistant host.
 2. Verify the token against `GET /v1/capabilities` without placing it in the URL or logs.
-3. Confirm `features.responses_api` is `true` and the advertised auth/endpoint contract matches the verifier.
+3. Confirm `features.responses_api` is `true`, the auth/endpoint contract matches, and
+   `security` is exactly the server-enforced no-tools policy above.
 4. For HTTP, confirm the host belongs to an allowed private class.
 
 Contract checks are documented in

@@ -43,9 +43,8 @@ persistence/replay, tool interface, action path, or Voice end-to-end implementat
 Voice device → Home Assistant Assist STT
   → ConversationEntity.async_process(input, chat_log)
   → request DTO { model, input, conversation, stream: false }
-  → private authenticated HTTPS connection
-  → Hermes POST /v1/responses
-  → Hermes runs its own configured tools
+  → private authenticated HTTPS connection to the no-tools home gateway
+  → gateway-enforced Hermes POST /v1/responses
   → final text only
   → HA conversation response
   → HA TTS → voice device
@@ -70,11 +69,15 @@ async session and refuses to dispatch if that session currently contains cookies
 Each `async_respond` validates bounded request data, then performs authenticated
 `GET /v1/capabilities`. It sends exactly one `POST /v1/responses` only when the
 capabilities object advertises bearer-required `responses_api`, the fixed endpoint,
-and the requested model. There is no capability cache and no retry.
+the requested model, and exactly `security: {"tool_policy":"none","mcp_policy":"none",
+"server_enforced":true}`. There is no capability cache and no retry. A generic remote
+Hermes server, even one advertising `responses_api`, is outside this bridge contract.
 
-### Hermes
+### Hermes home gateway
 
-Hermes holds its own model/tool configuration and, if smart-home control is enabled, a separate Home Assistant credential. Hermes owns stateful named conversation history. The bridge must use an opaque conversation key, not a raw HA identifier.
+The accepted gateway server-enforces that neither tools nor MCP are available. It owns
+stateful named conversation history; the bridge uses an opaque conversation key, not a
+raw HA identifier. The integration does not accept a generic tool-capable Hermes server.
 
 The committed verifier obtains the request `model` from authenticated `/v1/capabilities`, requires `features.responses_api: true`, and tests state across two requests carrying the same fresh opaque `conversation`. Its strengthened checks await a fresh live run; the exact requirements and evidence limitations are in [`hermes-responses-contract.md`](hermes-responses-contract.md).
 
@@ -95,7 +98,7 @@ The verifier does not establish Hermes retention capacity or durability. Continu
 | --- | --- |
 | Endpoint unavailable before dispatch | Return brief spoken availability failure; no action occurred. |
 | Auth/capability failure | Return setup-oriented failure; do not save unsupported config. |
-| Capability HTTP/schema/auth/model failure | Fail closed before POST. |
+| Capability HTTP/schema/auth/model/security-policy failure | Fail closed before POST. |
 | Invalid JSON/content type/oversized response before POST | Return brief safe failure; log only redacted diagnostics. |
 | POST HTTP error or malformed/oversized/invalid response | Say outcome may be unknown; do not retry automatically. |
 | Timeout/disconnect after dispatch | Say outcome may be unknown; do not retry automatically. |
@@ -103,7 +106,8 @@ The verifier does not establish Hermes retention capacity or durability. Continu
 
 ## High-impact actions
 
-v0.1 does not expose high-impact actions through this component until Hermes has an auditable execution-time confirmation mechanism. A model prompt or a spoken confirmation alone is insufficient. High-impact includes locks, alarms, doors/garage, feeders, destructive operations, and HA configuration changes.
+v0.1 exposes no actions or tools. Its accepted home gateway must enforce both tool and
+MCP policy as `none`; a model prompt or spoken confirmation is not a security boundary.
 
 This repository cannot enforce which tools an independently configured Hermes server
 loads, and the inert spike has no Hermes request or tool-execution sink. The HA-local

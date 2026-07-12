@@ -50,7 +50,12 @@ An operator should expose Hermes to Home Assistant only through a private revers
 
 ### Hermes API contract
 
-v0.1 targets **`POST /v1/responses`** on a Hermes API server that advertises `responses_api: true` from `GET /v1/capabilities`. It sends a bearer token in `Authorization`, JSON content only, `stream: false`, a bounded plain-text `input`, and an opaque `conversation` key. Hermes’s current API documentation describes named conversations as the stateful mechanism; **Hermes is the only history owner**, so the HA integration does **not** include Home Assistant `ChatLog` history in requests.
+v0.1 targets **`POST /v1/responses`** only on the simple Hermes home gateway. In addition
+to `responses_api: true`, authenticated `GET /v1/capabilities` must advertise exactly
+`security: {"tool_policy":"none","mcp_policy":"none","server_enforced":true}`. Generic
+remote Hermes servers are outside scope. The bridge sends a bearer token in
+`Authorization`, JSON content only, `stream: false`, a bounded plain-text `input`, and an
+opaque `conversation` key. Hermes is the only history owner, so HA `ChatLog` is omitted.
 
 The automated contract verifier defines the exact narrow `/v1/responses` request/response schema and tests named-conversation continuity with fresh run-scoped values. Its strengthened checks have not yet run against a live server, so no minimum Hermes version is pinned. Deterministic fixture tests run offline, while live verification requires an explicit flag, URL, and token. The integration must fail closed for an unsupported server/capability instead of silently falling back to another endpoint. It must never automatically retry a request that may have initiated an action: a network timeout is an indeterminate result.
 
@@ -119,7 +124,8 @@ Only an allowlisted request DTO (`input`, opaque `conversation`, declared model/
 - Installation does not require editing Home Assistant Core.
 - HA can validate a configured Hermes endpoint before saving the entry.
 - The standalone client revalidates authenticated `responses_api` capabilities before
-  every Responses POST and proves that capability failure dispatches no POST.
+  every Responses POST, requires the exact server-enforced no-tools/MCP policy, and proves
+  that missing or mismatched policy dispatches no POST.
 - Plaintext opt-in is constrained to the documented local/private/Tailscale address
   policy; public and unclassified HTTP hosts are rejected.
 - Numeric deadlines and limits reject booleans, non-finite/non-positive values, and

@@ -13,7 +13,7 @@ The verifier does not print its base URL, token, prompts, response text, convers
 | Request | Authentication | Required success contract |
 | --- | --- | --- |
 | `GET /health` | None required | `200`, `application/json`; object with `status: "ok"`, `platform: "hermes-agent"`, and non-empty `version`. |
-| `GET /v1/capabilities` | `Authorization: Bearer <token>` | `200`, `application/json`; `object: "hermes.api_server.capabilities"`, non-empty `model`, `auth.type: "bearer"`, `auth.required: true`, `features.responses_api: true`, and `endpoints.responses: {"method":"POST","path":"/v1/responses"}`. |
+| `GET /v1/capabilities` | `Authorization: Bearer <token>` | `200`, `application/json`; `object: "hermes.api_server.capabilities"`, non-empty `model`, `auth.type: "bearer"`, `auth.required: true`, `features.responses_api: true`, `endpoints.responses: {"method":"POST","path":"/v1/responses"}`, and exactly `security: {"tool_policy":"none","mcp_policy":"none","server_enforced":true}` for gateway-enforced home mode. |
 | `POST /v1/responses` | `Authorization: Bearer <token>` | `200`, `application/json`; non-empty `id`, `object: "response"`, `status: "completed"`, non-negative integer `created_at`, the advertised `model`, and `usage` with non-negative integer `input_tokens`, `output_tokens`, and `total_tokens`. `output` must be a non-empty array containing only `type: "message"`, `role: "assistant"` items with non-empty `content`; every content item must have `type: "output_text"` and non-empty string `text`. The two turns must have distinct response IDs. |
 
 Requests send `Accept: application/json`; POST also sends `Content-Type: application/json`. The verifier checks the response media type but makes no claim about `Content-Length`, session headers, or other response headers.
@@ -32,6 +32,10 @@ The contract test sends exactly:
 ```
 
 Only these four fields are sent by the verifier and allowed by the planned v0.1 DTO. In particular, it does not send `conversation_history`, `previous_response_id`, `instructions`, `tools`, Home Assistant `ChatLog`, HA identifiers, contexts, credentials, cookies, or copied headers. The verifier tests named conversations only; compatibility or mutual-exclusion behavior for other state mechanisms is unverified.
+
+The Home Assistant client accepts only the gateway-enforced home mode above. A generic
+remote Hermes server with `responses_api` but missing or different `security` policy is
+not compatible and is rejected before any Responses POST.
 
 The model is the opaque non-empty value returned by `/v1/capabilities`, and the verifier sends that exact value in both POSTs. It does not assert what that value represents and does not hard-code a model name.
 

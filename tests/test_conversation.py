@@ -25,6 +25,15 @@ from custom_components.hermes_conversation.client import (
 from custom_components.hermes_conversation.const import CONF_TOKEN, CONF_URL, DOMAIN
 
 
+def _home_capabilities(model: str) -> HermesCapabilities:
+    return HermesCapabilities(
+        model=model,
+        tool_policy="none",
+        mcp_policy="none",
+        server_enforced=True,
+    )
+
+
 def _entry(endpoint: str, token: str, *, title: str) -> MockConfigEntry:
     return MockConfigEntry(
         domain=DOMAIN,
@@ -46,7 +55,7 @@ async def _loaded_entity(
     entry.add_to_hass(hass)
     client = MagicMock(spec=HermesClient)
     client.async_health = AsyncMock()
-    client.async_capabilities = AsyncMock(return_value=HermesCapabilities(model=model))
+    client.async_capabilities = AsyncMock(return_value=_home_capabilities(model))
     client.async_respond = AsyncMock(
         return_value=HermesResponse(response_id="response-id", text="Respuesta breve")
     )
@@ -132,7 +141,7 @@ async def test_entries_are_isolated_and_each_register_exactly_one_entity(
         client = MagicMock(spec=HermesClient)
         client.async_health = AsyncMock()
         client.async_capabilities = AsyncMock(
-            return_value=HermesCapabilities(model=f"model-{entry.title.lower()}")
+            return_value=_home_capabilities(f"model-{entry.title.lower()}")
         )
         client.async_respond = AsyncMock(
             return_value=HermesResponse(response_id="id", text=entry.title)
@@ -219,6 +228,28 @@ async def test_setup_retry_registers_no_entity(hass: HomeAssistant) -> None:
     assert er.async_entries_for_config_entry(er.async_get(hass), entry.entry_id) == []
 
 
+async def test_generic_responses_api_policy_rejection_registers_no_bridge(
+    hass: HomeAssistant,
+) -> None:
+    """A generic remote Hermes server cannot become a callable HA bridge."""
+    entry = _entry("https://generic-hermes.example.test", "token", title="Generic")
+    entry.add_to_hass(hass)
+    client = MagicMock(spec=HermesClient)
+    client.async_health = AsyncMock()
+    client.async_capabilities = AsyncMock(
+        side_effect=HermesClientError(
+            "/v1/capabilities does not advertise the exact no-tools security policy"
+        )
+    )
+
+    with patch("custom_components.hermes_conversation.create_client", return_value=client):
+        assert not await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    assert entry.state is ConfigEntryState.SETUP_RETRY
+    assert er.async_entries_for_config_entry(er.async_get(hass), entry.entry_id) == []
+
+
 async def test_unload_and_reload_do_not_double_entity_instances(hass: HomeAssistant) -> None:
     """Platform lifecycle removes the entity and reload creates only one replacement."""
     entry = _entry("https://reload.example.test", "token", title="Reload")
@@ -228,7 +259,7 @@ async def test_unload_and_reload_do_not_double_entity_instances(hass: HomeAssist
     def create(_hass: HomeAssistant, _entry: MockConfigEntry) -> MagicMock:
         client = MagicMock(spec=HermesClient)
         client.async_health = AsyncMock()
-        client.async_capabilities = AsyncMock(return_value=HermesCapabilities(model="model"))
+        client.async_capabilities = AsyncMock(return_value=_home_capabilities("model"))
         client.async_respond = AsyncMock(return_value=HermesResponse(response_id="id", text="ok"))
         clients.append(client)
         return client

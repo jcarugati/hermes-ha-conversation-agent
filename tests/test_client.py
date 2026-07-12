@@ -22,6 +22,7 @@ from yarl import URL
 
 from custom_components.hermes_conversation.client import (
     HermesAuthenticationError,
+    HermesCapabilities,
     HermesClient,
     HermesClientError,
     HermesIndeterminateError,
@@ -90,6 +91,11 @@ def capabilities() -> dict[str, object]:
         "model": "fixture-model",
         "auth": {"type": "bearer", "required": True},
         "features": {"responses_api": True},
+        "security": {
+            "tool_policy": "none",
+            "mcp_policy": "none",
+            "server_enforced": True,
+        },
         "endpoints": {"responses": {"method": "POST", "path": "/v1/responses"}},
     }
 
@@ -250,6 +256,12 @@ async def test_fixed_endpoints_auth_headers_and_allowlisted_body() -> None:
     )
 
     assert health_result.version == "0.18.2"
+    assert capabilities_result == HermesCapabilities(
+        model="fixture-model",
+        tool_policy="none",
+        mcp_policy="none",
+        server_enforced=True,
+    )
     assert response.text == "safe status"
     assert [call[:2] for call in session.calls] == [
         ("GET", "https://hermes.invalid/health"),
@@ -317,6 +329,55 @@ async def test_rejects_invalid_content_and_capability_schema(
     client = HermesClient(FakeSession([response]), "https://hermes.invalid", "secret")  # type: ignore[arg-type]
     with pytest.raises(HermesProtocolError, match=message):
         await client.async_capabilities()
+
+
+@pytest.mark.parametrize(
+    "security",
+    [
+        None,
+        {},
+        {"tool_policy": "none", "mcp_policy": "none"},
+        {"tool_policy": "allowlist", "mcp_policy": "none", "server_enforced": True},
+        {"tool_policy": "none", "mcp_policy": "allowlist", "server_enforced": True},
+        {"tool_policy": "none", "mcp_policy": "none", "server_enforced": False},
+        {
+            "tool_policy": "none",
+            "mcp_policy": "none",
+            "server_enforced": True,
+            "extra": "not-exact",
+        },
+    ],
+)
+async def test_rejects_generic_responses_api_without_exact_home_security_policy(
+    security: object,
+) -> None:
+    payload = capabilities()
+    if security is None:
+        payload.pop("security")
+    else:
+        payload["security"] = security
+    client = HermesClient(
+        FakeSession([FakeResponse(payload)]),  # type: ignore[arg-type]
+        "https://hermes.invalid",
+        "secret",
+    )
+
+    with pytest.raises(HermesProtocolError, match="no-tools security policy"):
+        await client.async_capabilities()
+
+
+async def test_security_policy_failure_prevents_response_dispatch() -> None:
+    payload = capabilities()
+    payload.pop("security")
+    session = FakeSession([FakeResponse(payload)])
+    client = HermesClient(session, "https://hermes.invalid", "secret")  # type: ignore[arg-type]
+
+    with pytest.raises(HermesProtocolError, match="no-tools security policy"):
+        await client.async_respond(
+            model="fixture-model", utterance="status", conversation="conversation"
+        )
+
+    assert [call[0] for call in session.calls] == ["GET"]
 
 
 async def test_rejects_oversized_response_without_parsing_it() -> None:
