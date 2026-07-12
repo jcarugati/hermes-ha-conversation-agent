@@ -26,18 +26,16 @@ A model instruction such as “ask for confirmation” does not reliably protect
 
 Until Hermes provides a server-enforced confirmation API that binds a pending action ID, exact action parameters, origin conversation, and expiry, the proposed v0.1 production bridge must block high-impact actions. This includes locks, alarms, doors/garage, pet feeding, deletion/destructive commands, and Home Assistant configuration changes.
 
-The committed HA-local prototype contract exposes only a capability-specific
-read-only/status route. It has no generic dispatcher accepting caller-controlled
-operation classifications, so action-bearing and unclassified operations are absent
-from its public interface. Prompt injection and spoken or replayed confirmation cannot
-alter this API because it accepts neither prompt text nor confirmation state.
+The committed HA-local prototype is a non-executing read-only/status declaration. Its
+public API accepts no callable, operation, prompt, confirmation, or action parameters,
+and it exposes no executable action route.
 
 This is a prototype/interface property only, not end-to-end enforcement. Hermes tool
 profiles are external server configuration, and the current inert component sends
 nothing to Hermes and has no tool-execution sink. A future network bridge requires a
-verified Hermes execution profile/toolset capability and enforcement at every request
-and tool sink. It must verify the capability at startup and request time and fail
-closed when the capability is absent, stale, or unverifiable. No such attestation or
+verified Hermes read-only/status execution profile and enforcement at every future
+request and tool sink. It must verify the profile at startup and request time and fail
+closed when the profile is absent, stale, or unverifiable. No such attestation or sink
 integration exists in this repository today.
 
 ## Reporting a vulnerability

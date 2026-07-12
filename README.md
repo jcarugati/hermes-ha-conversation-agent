@@ -48,18 +48,17 @@ utterance or HA `ChatLog`. Home Assistant constructs those objects as part of th
 current API call; the entity uses only the language and conversation ID needed to form
 the fixed HA response.
 
-The repository also contains an HA-local prototype contract with one explicit
-read-only/status capability. It has no generic operation dispatcher or caller-supplied
-action classification, and accepts no prompt or spoken-confirmation override. All
-action-bearing and unclassified operations are unavailable through this interface by
-construction. The inert entity does not call this contract or Hermes, so this is not
-end-to-end enforcement and is not production-ready.
+The repository also contains an HA-local, non-executing declaration for one explicit
+read-only/status capability. Its public API accepts no callable, operation, prompt,
+confirmation, or action parameters, and it exposes no executable action route. The
+inert entity does not use this declaration or call Hermes, so this is not end-to-end
+enforcement and is not production-ready.
 
-Real enforcement requires a verified Hermes execution profile/toolset capability and
-integration of the restriction at every request and tool-execution sink. A future
-bridge must verify that capability at startup and request time and fail closed when it
-is absent, stale, or unverifiable. This repository has no such Hermes attestation or
-execution integration today.
+Real enforcement requires a verified Hermes read-only/status execution profile and
+integration at every future request and tool-execution sink. A future bridge must
+verify that profile at startup and request time and fail closed when it is absent,
+stale, or unverifiable. This repository has no such Hermes attestation or sink
+integration today.
 
 Do not copy this component into a Home Assistant installation expecting a usable
 conversation agent. The planned v0.1 below remains unimplemented.

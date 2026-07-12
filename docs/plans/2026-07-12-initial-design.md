@@ -76,11 +76,11 @@ Only an allowlisted request DTO (`input`, opaque `conversation`, declared model/
 ### Tracker task: Restringir herramientas y acciones sensibles
 
 - [x] Remove caller-controlled operation classification and the generic executable callback dispatcher.
-- [x] Expose one HA-local prototype contract for an explicit read-only/status capability.
-- [x] Make action-bearing and unclassified operations unavailable through the public policy interface by construction.
-- [x] Prove no public policy route dispatches supplied high-impact labels and that no prompt/confirmation override exists.
+- [x] Expose one HA-local, non-executing declaration for an explicit read-only/status capability.
+- [x] Remove every executable route from the public policy API, including callable input.
+- [x] Prove a high-impact callable cannot be passed through the public policy API or execute, and test only declaration/allowlist semantics.
 - [x] Document that the inert spike has no Hermes execution sink and does not provide end-to-end enforcement.
-- [ ] Require a verified Hermes execution profile/toolset capability at every future request/tool sink, with startup and request-time fail-closed verification.
+- [ ] Require a verified Hermes read-only/status execution profile at every future request/tool sink, with startup and request-time fail-closed verification.
 
 ## Implementation phases
 
