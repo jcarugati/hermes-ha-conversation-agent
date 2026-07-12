@@ -42,6 +42,10 @@ class HermesClientError(RuntimeError):
     """A sanitized Hermes request failure."""
 
 
+class HermesAuthenticationError(HermesClientError):
+    """Hermes rejected bearer authentication."""
+
+
 class HermesProtocolError(HermesClientError):
     """Hermes returned data outside the verified contract."""
 
@@ -76,7 +80,8 @@ class HermesResponse:
     text: str
 
 
-def _validate_base_url(base_url: str, allow_insecure_http: bool) -> str:
+def normalize_base_url(base_url: str, allow_insecure_http: bool = False) -> str:
+    """Validate and normalize a Hermes API base URL."""
     try:
         parsed = urlsplit(base_url)
         hostname = parsed.hostname
@@ -97,9 +102,25 @@ def _validate_base_url(base_url: str, allow_insecure_http: bool) -> str:
         raise ValueError("base URL must not contain a path")
     if any(character.isspace() for character in base_url):
         raise ValueError("base URL is malformed")
-    host = f"[{hostname}]" if ":" in hostname else hostname
-    netloc = f"{host}:{port}" if port is not None else host
+    canonical_hostname = _canonicalize_hostname(hostname)
+    host = f"[{canonical_hostname}]" if ":" in canonical_hostname else canonical_hostname
+    default_port = 443 if parsed.scheme == "https" else 80
+    netloc = f"{host}:{port}" if port is not None and port != default_port else host
     return urlunsplit((parsed.scheme, netloc, "", "", ""))
+
+
+def _canonicalize_hostname(hostname: str) -> str:
+    """Return one stable ASCII identity for DNS names and IP literals."""
+    candidate = hostname.rstrip(".")
+    if not candidate or "%" in candidate:
+        raise ValueError("base URL host is malformed")
+    try:
+        return ipaddress.ip_address(candidate).compressed.lower()
+    except ValueError:
+        try:
+            return candidate.encode("idna").decode("ascii").lower()
+        except UnicodeError:
+            raise ValueError("base URL host is malformed") from None
 
 
 def _is_allowed_http_host(hostname: str) -> bool:
@@ -158,7 +179,7 @@ class HermesClient:
         max_utterance_chars: int = DEFAULT_MAX_UTTERANCE_CHARS,
         max_output_chars: int = DEFAULT_MAX_OUTPUT_CHARS,
     ) -> None:
-        self.base_url = _validate_base_url(base_url, allow_insecure_http)
+        self.base_url = normalize_base_url(base_url, allow_insecure_http)
         if not token or "\r" in token or "\n" in token:
             raise ValueError("bearer token must be non-empty and header-safe")
         connect_timeout = _positive_timeout("connect_timeout", connect_timeout)
@@ -284,6 +305,10 @@ class HermesClient:
             raise HermesClientError(f"{method} {path} request setup failed") from None
         try:
             async with request as response:
+                if authenticated and response.status in {401, 403}:
+                    raise HermesAuthenticationError(
+                        f"{method} {path} returned HTTP {response.status}"
+                    )
                 if response.status != 200:
                     raise HermesProtocolError(f"{method} {path} returned HTTP {response.status}")
                 media_type = (

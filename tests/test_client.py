@@ -21,10 +21,12 @@ from cryptography.x509.oid import NameOID
 from yarl import URL
 
 from custom_components.hermes_conversation.client import (
+    HermesAuthenticationError,
     HermesClient,
     HermesClientError,
     HermesIndeterminateError,
     HermesProtocolError,
+    normalize_base_url,
 )
 
 
@@ -140,6 +142,38 @@ def test_http_requires_explicit_opt_in() -> None:
 
 
 @pytest.mark.parametrize(
+    ("url", "canonical"),
+    [
+        ("https://HERMES.Example.Test.:443/", "https://hermes.example.test"),
+        (
+            "https://b\N{LATIN SMALL LETTER U WITH DIAERESIS}cher.example/",
+            "https://xn--bcher-kva.example",
+        ),
+        ("https://XN--BCHER-KVA.EXAMPLE./", "https://xn--bcher-kva.example"),
+        ("https://[2001:0DB8:0:0:0:0:0:1]:443/", "https://[2001:db8::1]"),
+        ("http://[FD00:0:0:0:0:0:0:1]:80/", "http://[fd00::1]"),
+    ],
+)
+def test_canonical_endpoint_identity(url: str, canonical: str) -> None:
+    assert normalize_base_url(url, url.startswith("http://")) == canonical
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://hermes.example.test/.",
+        "https://hermes.example.test/%2e",
+        "https://hermes.example.test/%2F",
+        "https://hermes.example.test/%252f",
+        "https://hermes.example.test//",
+    ],
+)
+def test_canonical_endpoint_identity_rejects_unsafe_path_variants(url: str) -> None:
+    with pytest.raises(ValueError, match="path"):
+        normalize_base_url(url)
+
+
+@pytest.mark.parametrize(
     "url",
     [
         "http://192.168.1.10",
@@ -248,6 +282,23 @@ async def test_rejects_redirects_without_following(status: int) -> None:
         await client.async_capabilities()
     assert len(session.calls) == 1
     assert session.calls[0][2]["allow_redirects"] is False
+
+
+@pytest.mark.parametrize("status", [401, 403])
+async def test_health_rejection_is_not_an_authentication_error(status: int) -> None:
+    session = FakeSession([FakeResponse({}, status=status)])
+    client = HermesClient(session, "https://hermes.invalid", "secret")  # type: ignore[arg-type]
+    with pytest.raises(HermesProtocolError, match=f"HTTP {status}") as error:
+        await client.async_health()
+    assert not isinstance(error.value, HermesAuthenticationError)
+
+
+@pytest.mark.parametrize("status", [401, 403])
+async def test_capabilities_rejection_has_distinct_authentication_error(status: int) -> None:
+    session = FakeSession([FakeResponse({}, status=status)])
+    client = HermesClient(session, "https://hermes.invalid", "secret")  # type: ignore[arg-type]
+    with pytest.raises(HermesAuthenticationError, match=f"HTTP {status}"):
+        await client.async_capabilities()
 
 
 @pytest.mark.parametrize(

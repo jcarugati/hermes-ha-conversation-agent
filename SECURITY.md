@@ -4,12 +4,15 @@
 
 The proposed v0.1 production integration will bridge spoken requests from Home Assistant Assist to an agent capable of using tools. That production bridge will be a security-sensitive boundary and must prioritize a small attack surface, explicit trust boundaries, and fail-closed behavior over broad automation capability.
 
-The current compatibility spike only registers a Conversation entity and returns a
-fixed response. It does not connect to Hermes, send transcripts or tokens, expose
-diagnostics, or implement the production network bridge described below. An unwired
-client module implements the fixed outbound HTTP contract for future callers; it
-stores configuration only in memory and never logs requests, URLs, transcripts, or
-tokens.
+The current integration stores a Hermes URL and bearer token through Home Assistant's
+UI config-entry mechanism and validates health/authenticated capabilities in both the
+flow and setup. It does not send transcripts, expose diagnostics, register a
+Conversation entity, or implement the production request bridge described below.
+Diagnostics and diagnostics redaction are explicitly excluded from this tracker task.
+The client and lifecycle never log requests, URLs, transcripts, or tokens.
+HTTP 401/403 responses have a dedicated sanitized error path that starts Home
+Assistant reauthentication during setup; rejected replacement credentials do not
+overwrite the working entry or trigger a reload.
 
 The client has no arbitrary tool/action field or generic request interface. This
 data-only shape prevents callers from adding tool definitions through the client, but
@@ -24,9 +27,11 @@ The strengthened Hermes contract verifier has deterministic coverage but still a
 - Hermes API access over a private LAN/Tailscale/reverse-proxy route; never public Internet exposure.
 - Bearer token supplied in an HTTP Authorization header, never in a URL.
 - Normal TLS certificate validation by default. Plaintext HTTP requires explicit
-  acknowledgement and is accepted only for loopback, RFC 1918, IPv4/IPv6 link-local,
+  acknowledgement in every configuration lifecycle flow and is accepted only for loopback, RFC 1918, IPv4/IPv6 link-local,
   IPv6 ULA, Tailscale `100.64.0.0/10`, or hostnames ending in `.local`, `.home.arpa`,
   or `.ts.net` (plus `localhost`). Public and unclassified HTTP hosts are rejected.
+- Endpoint identity canonicalizes DNS case/trailing dots, IDN punycode, IPv6 text, and
+  default ports before atomic duplicate checks; all non-root path variants are rejected.
 - No redirects on authenticated outbound requests.
 - Refuse an injected shared session that currently contains cookies, so Home
   Assistant cookies cannot accompany Hermes requests. The client never creates a

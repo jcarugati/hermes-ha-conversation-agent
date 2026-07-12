@@ -22,9 +22,9 @@ def test_home_assistant_package_has_installable_manifest() -> None:
 
     assert manifest == {
         "domain": "hermes_conversation",
-        "name": "Hermes Conversation Agent (Developer Spike)",
+        "name": "Hermes Conversation Agent",
         "codeowners": ["@jcarugati"],
-        "dependencies": ["conversation"],
+        "config_flow": True,
         "documentation": "https://github.com/jcarugati/hermes-ha-conversation-agent",
         "integration_type": "service",
         "issue_tracker": "https://github.com/jcarugati/hermes-ha-conversation-agent/issues",
@@ -35,19 +35,19 @@ def test_home_assistant_package_has_installable_manifest() -> None:
 def test_hacs_repository_metadata_points_to_integration_package() -> None:
     """HACS can identify this repository as a custom integration repository."""
     assert _json_object(ROOT / "hacs.json") == {
-        "name": "Hermes Conversation Agent (Developer Spike)",
+        "name": "Hermes Conversation Agent",
     }
 
 
-def test_skeleton_does_not_scaffold_out_of_scope_runtime_features() -> None:
-    """Install metadata must not imply unimplemented configuration or bridges."""
+def test_lifecycle_scope_does_not_scaffold_out_of_scope_runtime_features() -> None:
+    """Install metadata enables config while excluding runtime bridges and diagnostics."""
     manifest = _json_object(INTEGRATION / "manifest.json")
-    assert "config_flow" not in manifest
+    assert manifest["config_flow"] is True
     assert "requirements" not in manifest
 
     excluded_modules = {
-        "config_flow.py",
         "diagnostics.py",
+        "conversation.py",
         "conversation_cache.py",
         "webhook.py",
     }
