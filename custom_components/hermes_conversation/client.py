@@ -209,7 +209,12 @@ class HermesClient:
         return HermesHealth(version=_required_string(payload, "version", "/health"))
 
     async def async_capabilities(self) -> HermesCapabilities:
-        """Validate support for the exact authenticated Responses API contract."""
+        """Validate an authenticated Hermes Responses API endpoint.
+
+        A stock Hermes API server advertises ``chat_completions`` and owns its
+        full tool policy. The legacy private no-tools gateway remains accepted
+        only when it advertises its exact server-enforced policy.
+        """
         payload = await self._request_json("GET", "/v1/capabilities", authenticated=True)
         if payload.get("object") != "hermes.api_server.capabilities":
             raise HermesProtocolError(
@@ -226,6 +231,19 @@ class HermesClient:
         if not isinstance(endpoints, dict) or endpoints.get("responses") != expected:
             raise HermesProtocolError("/v1/capabilities does not advertise the responses endpoint")
         security = payload.get("security")
+        if "chat_completions" in features:
+            if features["chat_completions"] is True and "security" not in payload:
+                return HermesCapabilities(
+                    model=_required_string(payload, "model", "/v1/capabilities"),
+                    tool_policy="full_agent",
+                    mcp_policy="server_managed",
+                    server_enforced=False,
+                )
+            raise HermesProtocolError(
+                "/v1/capabilities is neither a full Hermes API server nor the "
+                "exact no-tools gateway"
+            )
+
         expected_security = {
             "tool_policy": "none",
             "mcp_policy": "none",
@@ -233,7 +251,8 @@ class HermesClient:
         }
         if not isinstance(security, dict) or security != expected_security:
             raise HermesProtocolError(
-                "/v1/capabilities does not advertise the exact no-tools security policy"
+                "/v1/capabilities is neither a full Hermes API server nor the "
+                "exact no-tools gateway"
             )
         return HermesCapabilities(
             model=_required_string(payload, "model", "/v1/capabilities"),
