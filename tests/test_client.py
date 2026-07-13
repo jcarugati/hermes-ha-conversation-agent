@@ -349,6 +349,24 @@ async def test_accepts_a_full_hermes_api_server_without_custom_security_policy()
     )
 
 
+@pytest.mark.parametrize("chat_completions", [False, "true", 1, {}, []])
+async def test_rejects_a_legacy_gateway_with_a_malformed_chat_completions_feature(
+    chat_completions: object,
+) -> None:
+    payload = capabilities()
+    payload["features"] = {"responses_api": True, "chat_completions": chat_completions}
+    client = HermesClient(
+        FakeSession([FakeResponse(payload)]),  # type: ignore[arg-type]
+        "https://hermes.invalid",
+        "secret",
+    )
+
+    with pytest.raises(
+        HermesProtocolError, match="neither a full Hermes API server nor the exact no-tools gateway"
+    ):
+        await client.async_capabilities()
+
+
 async def test_rejects_a_mixed_direct_and_legacy_capability_contract() -> None:
     payload = capabilities()
     payload["features"] = {"responses_api": True, "chat_completions": True}

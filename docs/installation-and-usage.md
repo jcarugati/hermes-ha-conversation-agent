@@ -8,7 +8,7 @@ Enter a private root URL and bearer token. The integration validates `/health`, 
 
 ### Direct Hermes API server
 
-Use the standard API server of the running Hermes instance when Assist should use the same capabilities as other Hermes channels. It must advertise `responses_api: true`, `chat_completions: true`, bearer-required authentication, and no custom `security` object. This mode inherits the configured Hermes capability surface; it is not a home-only sandbox.
+Use the standard API server of the running Hermes instance when Assist should use the same capabilities as other Hermes channels. It must advertise `responses_api: true`, `chat_completions: true`, bearer-required authentication, and no custom `security` object. This mode inherits the configured Hermes capability surface; it is not a home-only sandbox, and voice is not user authentication. Keep the server private and disable unnecessary browser CORS.
 
 ### Legacy no-tools gateway
 

@@ -17,7 +17,7 @@ A direct server must advertise bearer authentication, `responses_api: true`, `ch
 
 ## Security and rollout
 
-Keep endpoints private (Tailnet/LAN/private reverse proxy) and use bearer auth. HTTPS is preferred; private HTTP needs explicit acknowledgement. Requests use a cookie-free Home Assistant session and contain only `{model, input, conversation, stream: false}`. Dispatched requests are never retried automatically.
+Keep endpoints private (Tailnet/LAN/private reverse proxy) and use bearer auth; this privacy is an operator deployment requirement for HTTPS endpoints. Disable unnecessary browser CORS. HTTPS is preferred; private HTTP needs explicit acknowledgement. Requests use a cookie-free Home Assistant session and contain only `{model, input, conversation, stream: false}`. Dispatched requests revalidate capabilities (not health) and are never retried automatically.
 
 For safe migration, keep the working Voice pipeline enabled, add a separate direct entry/pipeline, verify simple text conversation, then a read-only HA query, then an explicitly authorized harmless action. Only after those checks should the fallback be retired or control advertised in Assist.
 
