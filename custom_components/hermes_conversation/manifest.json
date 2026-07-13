@@ -4,6 +4,7 @@
   "codeowners": ["@jcarugati"],
   "config_flow": true,
   "documentation": "https://github.com/jcarugati/hermes-ha-conversation-agent",
+  "dependencies": ["conversation"],
   "integration_type": "service",
   "issue_tracker": "https://github.com/jcarugati/hermes-ha-conversation-agent/issues",
   "version": "0.0.1"

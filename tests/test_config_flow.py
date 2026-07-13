@@ -12,6 +12,7 @@ from pytest_homeassistant_custom_component.common import (  # type: ignore[impor
 from custom_components.hermes_conversation.client import (
     HermesAuthenticationError,
     HermesClientError,
+    HermesProtocolError,
 )
 from custom_components.hermes_conversation.const import (
     CONF_ALLOW_INSECURE_HTTP,
@@ -113,6 +114,29 @@ async def test_invalid_or_unavailable_server_is_not_saved(hass: HomeAssistant) -
         )
     assert result["type"] == "form"
     assert result["errors"] == {"base": "cannot_connect"}
+
+
+async def test_generic_responses_api_without_home_security_policy_cannot_configure(
+    hass: HomeAssistant,
+) -> None:
+    """A generic remote Hermes server is outside the gateway-only contract."""
+    with patch(
+        "custom_components.hermes_conversation.config_flow.async_validate_connection",
+        new=AsyncMock(
+            side_effect=HermesProtocolError(
+                "/v1/capabilities does not advertise the exact no-tools security policy"
+            )
+        ),
+    ):
+        result = await hass.config_entries.flow.async_init(
+            DOMAIN,
+            context={"source": SOURCE_USER},
+            data={CONF_URL: "https://generic-hermes.example.test", CONF_TOKEN: "secret"},
+        )
+
+    assert result["type"] == "form"
+    assert result["errors"] == {"base": "cannot_connect"}
+    assert hass.config_entries.async_entries(DOMAIN) == []
 
 
 async def test_duplicate_normalized_url_is_rejected(hass: HomeAssistant) -> None:

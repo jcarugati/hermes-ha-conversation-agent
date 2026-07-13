@@ -70,6 +70,9 @@ class HermesCapabilities:
     """Validated capabilities required by this client."""
 
     model: str
+    tool_policy: str
+    mcp_policy: str
+    server_enforced: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -220,7 +223,22 @@ class HermesClient:
         expected = {"method": "POST", "path": "/v1/responses"}
         if not isinstance(endpoints, dict) or endpoints.get("responses") != expected:
             raise HermesProtocolError("/v1/capabilities does not advertise the responses endpoint")
-        return HermesCapabilities(model=_required_string(payload, "model", "/v1/capabilities"))
+        security = payload.get("security")
+        expected_security = {
+            "tool_policy": "none",
+            "mcp_policy": "none",
+            "server_enforced": True,
+        }
+        if not isinstance(security, dict) or security != expected_security:
+            raise HermesProtocolError(
+                "/v1/capabilities does not advertise the exact no-tools security policy"
+            )
+        return HermesCapabilities(
+            model=_required_string(payload, "model", "/v1/capabilities"),
+            tool_policy=security["tool_policy"],
+            mcp_policy=security["mcp_policy"],
+            server_enforced=security["server_enforced"],
+        )
 
     async def async_respond(
         self, *, model: str, utterance: str, conversation: str

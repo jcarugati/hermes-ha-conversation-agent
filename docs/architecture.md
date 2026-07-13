@@ -1,11 +1,11 @@
 # Architecture
 
-## Current config-entry foundation
+## Current conversation bridge
 
-The current code is not the bridge described below. It implements a UI-only config
-flow and complete entry lifecycle around the narrow Hermes client. Credential flows
+The current code implements a UI config flow, complete entry lifecycle, and one
+official Conversation entity per validated entry around the narrow Hermes client. Credential flows
 canonicalize a base URL, atomically prevent duplicates by canonical identity, store the bearer token
-in config-entry data, and validates health plus the authenticated Responses API
+in config-entry data, and validate health plus the authenticated Responses API
 capability before saving. Permitted HTTP requires a distinct acknowledgement in user,
 import, reauthentication, and options flows.
 
@@ -20,21 +20,27 @@ reloads after validation; failure preserves the old token and performs no reload
 Options contain only connect timeout, total timeout, and maximum output length and
 reload on change.
 
-There is no coordinator, periodic polling, diagnostics, Conversation entity, request
-bridge, conversation state/cache, tool interface, or action path. Setup validation
-performs no Responses POST.
+Setup validation performs no Responses POST. After validation, runtime data retains
+only the client and advertised model and forwards the entry to the Conversation
+platform. Unload removes the platform instance; reload validates and creates one fresh
+instance without doubling entities.
 
 The implemented `safety` module is an HA-local prototype declaration, not a production
 boundary. It contains one immutable read-only/status request type and exposes no
 executable action route. Its public API accepts no callable, utterance, operation,
 prompt, spoken confirmation, action parameters, or generic tool list.
 
-Everything below remains the planned v0.1 bridge architecture and is not implemented
-by the config-entry foundation.
+There is no coordinator, periodic polling, diagnostics, reused conversation-key
+lock/cache/TTL, persistence/replay, tool interface, action path, prompt override, or
+Voice end-to-end implementation. Fresh per-turn keys are the v0.1 design, not an
+unfinished cache feature.
 
-## Planned v0.1 purpose
+## Implemented bridge purpose
 
-`hermes_conversation` will be a Home Assistant custom component that implements a Conversation entity. It receives `ConversationInput` from Assist, sends a restricted request to the Hermes API, and returns a final speech response that Home Assistant can send to TTS.
+`hermes_conversation` is a Home Assistant custom component that implements a
+Conversation entity. It receives `ConversationInput` from Assist, sends a restricted
+request to the private Hermes Responses API, and returns a final speech response that
+Home Assistant can send to TTS. It never calls `/v1/chat/completions`.
 
 ## Data flow
 
@@ -42,9 +48,8 @@ by the config-entry foundation.
 Voice device → Home Assistant Assist STT
   → ConversationEntity.async_process(input, chat_log)
   → request DTO { model, input, conversation, stream: false }
-  → private authenticated HTTPS connection
-  → Hermes POST /v1/responses
-  → Hermes runs its own configured tools
+  → private authenticated HTTPS connection to the no-tools home gateway
+  → gateway-enforced Hermes POST /v1/responses
   → final text only
   → HA conversation response
   → HA TTS → voice device
@@ -56,35 +61,47 @@ Voice device → Home Assistant Assist STT
 
 Home Assistant holds voice-device, Assist, and Home Assistant credentials. Those values remain inside Home Assistant. The component must not forward HA `Context`, long-lived tokens, cookies, headers, service-call data, or `ChatLog` content.
 
-### Proposed bridge component
+### Bridge component
 
 The implemented asynchronous client is not a general proxy. It accepts only a base
-URL, bearer token, and explicit limits from a future caller; calls only `/health`,
+URL, bearer token, and explicit limits from the entity caller; calls only `/health`,
 `/v1/capabilities`, and `/v1/responses`; disables redirects; uses HTTPS by default;
 and bounds payloads, output, connect time, and total time. It exposes no arbitrary
-path, header, tool, or action parameters. Configuration and setup-time validation now
-exist; conversation/request wiring does not. The client uses only the injected shared
+path, header, tool, or action parameters. Configuration, setup-time validation, and the
+ConversationEntity request/response wiring now exist. The client uses only the injected shared
 async session and refuses to dispatch if that session currently contains cookies.
 
 Each `async_respond` validates bounded request data, then performs authenticated
 `GET /v1/capabilities`. It sends exactly one `POST /v1/responses` only when the
 capabilities object advertises bearer-required `responses_api`, the fixed endpoint,
-and the requested model. There is no capability cache and no retry.
+the requested model, and exactly `security: {"tool_policy":"none","mcp_policy":"none",
+"server_enforced":true}`. There is no capability cache and no retry. A generic remote
+Hermes server, even one advertising `responses_api`, is outside this bridge contract.
 
-### Hermes
+### Hermes home gateway
 
-Hermes holds its own model/tool configuration and, if smart-home control is enabled, a separate Home Assistant credential. Hermes owns stateful named conversation history. The bridge must use an opaque conversation key, not a raw HA identifier.
+The accepted gateway server-enforces that neither tools nor MCP are available. Hermes
+owns any state within its named-conversation API, but the bridge generates a fresh
+opaque key for every HA turn and never reuses a key for cross-turn HA history. The key
+is not derived from a raw HA identifier. The integration does not accept a generic or
+tool-capable Hermes server.
 
-The committed verifier obtains the request `model` from authenticated `/v1/capabilities`, requires `features.responses_api: true`, and tests state across two requests carrying the same fresh opaque `conversation`. Its strengthened checks await a fresh live run; the exact requirements and evidence limitations are in [`hermes-responses-contract.md`](hermes-responses-contract.md).
+The committed verifier obtains the request `model` from authenticated `/v1/capabilities`, requires `features.responses_api: true`, the exact no-tools/MCP policy, and tests state across two requests carrying the same fresh opaque `conversation`. It passed against the deployed private home gateway on 2026-07-12; that evidence is gateway-specific. Exact requirements and limitations are in [`hermes-responses-contract.md`](hermes-responses-contract.md).
 
 ## Conversation state
 
-The planned component would map each incoming HA conversation to a locally held opaque
-key. The v0.1 design requires same-key serialization, idle expiry, a bounded cache, and
-local reset/unload behavior. The exact Hermes-side deletion contract must be tested
-and documented before claiming hard deletion.
+This tracker deliberately creates a fresh cryptographically opaque key for each turn;
+it never derives a Hermes key from the incoming HA conversation, user, device, or
+entry identifier. Mapping, same-key serialization, idle expiry, bounded caching,
+reset, persistence, and replay are deliberately absent from v0.1 home mode.
 
-Only Hermes holds dialogue history. The HA `ChatLog` is not sent to avoid duplicating turns and leaking more transcript context than necessary.
+Only Hermes constructs model input within each fresh named turn. The entity neither
+reads nor sends inbound HA `ChatLog` content and does not reuse the key, so v0.1 supplies
+no cross-turn history and avoids duplicated turns and excess transcript exposure.
+To complete Home Assistant's official dispatcher lifecycle, it adds only Hermes's
+already-bounded returned assistant text to the local `ChatLog` through Home Assistant's
+official no-tools completion method; that local completion is never copied into the
+Hermes request DTO.
 
 The verifier does not establish Hermes retention capacity or durability. Continuity is useful state, not assumed durable storage. A missing/forgotten conversation must fail safely or begin fresh without mixing keys.
 
@@ -94,27 +111,24 @@ The verifier does not establish Hermes retention capacity or durability. Continu
 | --- | --- |
 | Endpoint unavailable before dispatch | Return brief spoken availability failure; no action occurred. |
 | Auth/capability failure | Return setup-oriented failure; do not save unsupported config. |
-| Capability HTTP/schema/auth/model failure | Fail closed before POST. |
+| Capability HTTP/schema/auth/model/security-policy failure | Fail closed before POST. |
 | Invalid JSON/content type/oversized response before POST | Return brief safe failure; log only redacted diagnostics. |
 | POST HTTP error or malformed/oversized/invalid response | Say outcome may be unknown; do not retry automatically. |
 | Timeout/disconnect after dispatch | Say outcome may be unknown; do not retry automatically. |
-| Hermes tool failure | Return Hermes’s safe final text if available; otherwise concise failure. |
+| Invalid completed-response schema or output | Return a concise sanitized failure; execute nothing. |
 
 ## High-impact actions
 
-v0.1 does not expose high-impact actions through this component until Hermes has an auditable execution-time confirmation mechanism. A model prompt or a spoken confirmation alone is insufficient. High-impact includes locks, alarms, doors/garage, feeders, destructive operations, and HA configuration changes.
+v0.1 exposes no tools, MCP, actions, executable callbacks, confirmation route, or prompt
+override. Its accepted home gateway must advertise exactly `security:
+{"tool_policy":"none","mcp_policy":"none","server_enforced":true}` during
+configuration, setup, and immediately before each POST. Any other policy fails closed
+before response dispatch.
 
-This repository cannot enforce which tools an independently configured Hermes server
-loads, and the inert spike has no Hermes request or tool-execution sink. The HA-local
-prototype therefore does not establish end-to-end enforcement or production
-readiness.
-
-A real bridge requires Hermes to advertise a verifiable read-only/status execution
-profile. The integration must enforce that restriction at every future request and
-tool-execution sink, verify it both at startup and for each request, and fail closed
-when the profile is absent, stale, or unverifiable. Until that sink integration exists,
-the local declaration alone does not enforce Hermes behavior. Prompt instructions and
-spoken confirmation cannot substitute for these controls.
+This is a gateway-specific enforced home mode, not a claim about an independently
+configured or generic Hermes server. The HA-local `safety.py` declaration is inert and
+has no request or tool-execution sink. Model instructions and spoken confirmation do
+not substitute for the exact server-enforced policy.
 
 ## Network deployment
 

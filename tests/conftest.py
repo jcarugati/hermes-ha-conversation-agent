@@ -1,10 +1,12 @@
 """Home Assistant test fixtures for the compatibility spike."""
 
-from collections.abc import Generator
+from collections.abc import AsyncGenerator, Generator
 from pathlib import Path
 
 import pytest
 import pytest_socket
+from homeassistant.core import HomeAssistant
+from homeassistant.setup import async_setup_component
 
 pytest_plugins = "pytest_homeassistant_custom_component"
 
@@ -26,3 +28,10 @@ def custom_components_path(enable_custom_integrations: None) -> Generator[None]:
     custom_components.__path__ = [*original_path, path]
     yield
     custom_components.__path__ = original_path
+
+
+@pytest.fixture(autouse=True)
+async def setup_homeassistant_component(hass: HomeAssistant) -> AsyncGenerator[None]:
+    """Initialize core registries required by the real conversation component."""
+    assert await async_setup_component(hass, "homeassistant", {})
+    yield
