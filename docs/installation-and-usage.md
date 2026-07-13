@@ -18,6 +18,12 @@ Conversation Agent**.
 
 ## Configure the Hermes home gateway
 
+Deploy the documented gateway from the private
+[hermes-ha-voice-gateway](https://github.com/jcarugati/hermes-ha-voice-gateway)
+repository. Its tracked `.env.example` and service template are deliberately sanitized:
+create the live environment file locally with mode `0600` and never commit its token or
+private endpoint details.
+
 Enter a private Hermes base URL with no credentials, path, query, or fragment, plus a
 dedicated bearer token. The flow canonicalizes DNS case and trailing dots, Unicode IDNs
 to punycode, IPv6 text, and default ports, then uses that identity as the entry's unique

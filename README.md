@@ -11,6 +11,14 @@ pipelines, devices, and native automations; Hermes owns reasoning behind a priva
 gateway that server-enforces no tools or MCP. This integration is a thin adapter to
 the authenticated `POST /v1/responses` API only; it never uses chat completions.
 
+## Gateway source
+
+The required server-enforced no-tools/no-MCP gateway is versioned separately in the
+private repository [hermes-ha-voice-gateway](https://github.com/jcarugati/hermes-ha-voice-gateway).
+That repository contains the gateway source, deployment template, and a sanitized
+configuration example. It intentionally excludes live endpoint addresses, bearer
+tokens, provider credentials, and Home Assistant configuration data.
+
 ## Current status
 
 **UI-configurable Hermes home-gateway conversation agent.** Home Assistant
