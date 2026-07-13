@@ -63,7 +63,7 @@ The automated contract verifier defines the exact narrow `/v1/responses` request
 
 ### Conversation lifecycle
 
-The integration uses Home Assistant’s current entity-based Conversation API (`ConversationEntity`, `ConversationInput`, and `ChatLog`) and advertises only the intended `CONTROL` capability. It creates a fresh random opaque Hermes key for each turn and does not forward raw Home Assistant conversation, device, user, assistant identifiers, or inbound `ChatLog`. Long-lived key mapping, per-conversation locking, idle expiry, reset, persistence, and replay behavior remain separate non-goals.
+The integration uses Home Assistant’s current entity-based Conversation API (`ConversationEntity`, `ConversationInput`, and `ChatLog`) and advertises no control features. It creates a fresh random opaque Hermes key for each turn and does not forward raw Home Assistant conversation, device, user, assistant identifiers, or inbound `ChatLog`. Long-lived key mapping, per-conversation locking, idle expiry, reset, persistence, and replay behavior remain separate non-goals.
 
 ### Dangerous actions
 
