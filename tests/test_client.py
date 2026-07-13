@@ -574,14 +574,13 @@ async def test_real_aiohttp_redirect_does_not_forward_bearer_or_cookie(
         await runner.cleanup()
 
 
-async def test_real_aiohttp_refuses_shared_session_cookies_without_dispatch(
+async def test_real_aiohttp_shared_session_cookies_are_not_forwarded(
     unused_tcp_port: int,
 ) -> None:
-    requests = 0
+    captured: list[dict[str, str]] = []
 
     async def capabilities_handler(request: web.Request) -> web.Response:
-        nonlocal requests
-        requests += 1
+        captured.append(dict(request.headers))
         return web.json_response(capabilities())
 
     app = web.Application()
@@ -602,9 +601,9 @@ async def test_real_aiohttp_refuses_shared_session_cookies_without_dispatch(
                 "fixture-secret",
                 allow_insecure_http=True,
             )
-            with pytest.raises(HermesClientError, match="containing cookies"):
-                await client.async_capabilities()
-            assert requests == 0
+            assert (await client.async_capabilities()).model == "fixture-model"
+            assert len(captured) == 1
+            assert "Cookie" not in captured[0] or captured[0]["Cookie"] == ""
     finally:
         await runner.cleanup()
 
