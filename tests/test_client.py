@@ -331,6 +331,43 @@ async def test_rejects_invalid_content_and_capability_schema(
         await client.async_capabilities()
 
 
+async def test_accepts_a_full_hermes_api_server_without_custom_security_policy() -> None:
+    payload = capabilities()
+    payload.pop("security")
+    payload["features"] = {"responses_api": True, "chat_completions": True}
+    client = HermesClient(
+        FakeSession([FakeResponse(payload)]),  # type: ignore[arg-type]
+        "https://hermes.invalid",
+        "secret",
+    )
+
+    assert await client.async_capabilities() == HermesCapabilities(
+        model="fixture-model",
+        tool_policy="full_agent",
+        mcp_policy="server_managed",
+        server_enforced=False,
+    )
+
+
+@pytest.mark.parametrize("security", [{}, {"tool_policy": "none"}, {"server_enforced": False}])
+async def test_rejects_direct_server_with_a_custom_security_object(
+    security: dict[str, object],
+) -> None:
+    payload = capabilities()
+    payload["features"] = {"responses_api": True, "chat_completions": True}
+    payload["security"] = security
+    client = HermesClient(
+        FakeSession([FakeResponse(payload)]),  # type: ignore[arg-type]
+        "https://hermes.invalid",
+        "secret",
+    )
+
+    with pytest.raises(
+        HermesProtocolError, match="full Hermes API server nor the exact no-tools gateway"
+    ):
+        await client.async_capabilities()
+
+
 @pytest.mark.parametrize(
     "security",
     [
@@ -362,7 +399,9 @@ async def test_rejects_generic_responses_api_without_exact_home_security_policy(
         "secret",
     )
 
-    with pytest.raises(HermesProtocolError, match="no-tools security policy"):
+    with pytest.raises(
+        HermesProtocolError, match="full Hermes API server nor the exact no-tools gateway"
+    ):
         await client.async_capabilities()
 
 
@@ -372,7 +411,9 @@ async def test_security_policy_failure_prevents_response_dispatch() -> None:
     session = FakeSession([FakeResponse(payload)])
     client = HermesClient(session, "https://hermes.invalid", "secret")  # type: ignore[arg-type]
 
-    with pytest.raises(HermesProtocolError, match="no-tools security policy"):
+    with pytest.raises(
+        HermesProtocolError, match="full Hermes API server nor the exact no-tools gateway"
+    ):
         await client.async_respond(
             model="fixture-model", utterance="status", conversation="conversation"
         )
