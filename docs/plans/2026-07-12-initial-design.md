@@ -35,7 +35,7 @@ Home Assistant Voice / Assist
   -> HA STT
   -> hermes_conversation custom integration (Conversation Agent)
   -> authenticated private HTTP connection
-  -> Hermes API server (/v1/chat/completions or /v1/responses)
+  -> private authenticated Hermes API server (POST /v1/responses only)
   -> Hermes Agent (no tools or MCP)
   -> final text response
   -> HA Conversation response
@@ -55,9 +55,11 @@ to `responses_api: true`, authenticated `GET /v1/capabilities` must advertise ex
 `security: {"tool_policy":"none","mcp_policy":"none","server_enforced":true}`. Generic
 remote Hermes servers are outside scope. The bridge sends a bearer token in
 `Authorization`, JSON content only, `stream: false`, a bounded plain-text `input`, and an
-opaque `conversation` key. Hermes is the only history owner, so HA `ChatLog` is omitted.
+opaque `conversation` key. The bridge never calls `/v1/chat/completions`. Hermes owns
+any state inside the named-conversation API, while the bridge never reuses a key across
+HA turns and omits inbound HA `ChatLog`.
 
-The automated contract verifier defines the exact narrow `/v1/responses` request/response schema and tests named-conversation continuity with fresh run-scoped values. Its strengthened checks passed against the deployed private home gateway on 2026-07-12; the evidence is gateway-specific, so no generic Hermes compatibility or minimum version is pinned. Deterministic fixture tests run offline, while live verification requires an explicit flag, URL, and token. The integration must fail closed for an unsupported server/capability instead of silently falling back to another endpoint. It must never automatically retry a request that may have initiated an action: a network timeout is an indeterminate result.
+The automated contract verifier defines the exact narrow `/v1/responses` request/response schema and tests named-conversation continuity with fresh run-scoped values. Its strengthened checks passed against the deployed private home gateway on 2026-07-12; the evidence is gateway-specific, so no generic Hermes compatibility or minimum version is pinned. Deterministic fixture tests run offline, while live verification requires an explicit flag, URL, and token. The integration must fail closed for an unsupported server/capability instead of silently falling back to another endpoint. Once a Responses POST is dispatched, a timeout or disconnect is indeterminate and the bridge never retries automatically, even though v0.1 exposes no action path.
 
 ### Conversation lifecycle
 
@@ -65,18 +67,33 @@ The integration uses Home Assistant’s current entity-based Conversation API (`
 
 ### Dangerous actions
 
-A system prompt is not a security boundary. Until Hermes offers a verified tool-execution confirmation contract that binds a pending action ID, exact parameters, expiry, and the originating conversation, v0.1 must prevent high-impact categories from being available through this integration. Those categories include locks, alarms, garage/door actuators, pet feeding, destructive operations, and Home Assistant configuration changes. A spoken “confirmo” is never treated as authentication.
+A system prompt is not a security boundary. v0.1 accepts no tools, MCP, actions,
+Home Assistant controls, executable callbacks, instructions, prompt override, or
+confirmation unlock. The exact server-enforced no-tools/no-MCP policy therefore blocks
+locks, alarms, garage/door actuators, pet feeding, destructive operations, Home
+Assistant configuration changes, and all other actions. A spoken “confirmo” is never
+treated as authentication.
 
 ### Network, privacy, and credential boundary
 
-Only an allowlisted request DTO (`input`, opaque `conversation`, declared model/options) crosses from HA to Hermes. Never forward HA contexts, service credentials, cookies, headers, long-lived access tokens, or `ChatLog` contents. Validate normal TLS; local HTTP is an explicit opt-in warning that transcripts and bearer tokens are exposed on that network. Reject URL credentials, redirects, unexpected content type, oversized payloads, and malformed JSON. Bound connect/total timeouts and output length. Redact tokens, URLs with sensitive query strings, and sensitive nested diagnostic data; do not log transcripts even at debug level.
+Only the allowlisted request DTO `{model, input, conversation, stream: false}` crosses
+from HA to Hermes. It has no tool, MCP, action, instruction, or prompt-override field.
+Never forward HA contexts, service credentials, cookies, copied headers, long-lived
+access tokens, or inbound `ChatLog` contents. Validate normal TLS; local HTTP is an
+explicit opt-in warning that transcripts and bearer tokens are exposed on that network.
+Reject URL credentials, redirects, unexpected content type, oversized payloads, and
+malformed JSON. Bound connect/total timeouts and output length. Redact tokens, URLs with
+sensitive query strings, and sensitive nested diagnostic data; do not log transcripts
+even at debug level.
 
 ## Remaining validation items
 
-1. Pin the minimum Home Assistant version after compiling/running against its current Conversation entity API and testing setup/unload/reload registration.
-2. Confirm Hermes’s `/v1/responses` schema and model identifier by running the strengthened automated contract verifier against the candidate minimum Hermes version; see `docs/hermes-responses-contract.md`.
-3. Implement config-entry duplicate prevention, reauthentication/token rotation, options updates, TLS failures, and endpoint-unavailable behavior.
-4. Define a future server-side confirmation capability before enabling high-impact actions.
+1. Keep the exercised Home Assistant development version distinct from any future
+   published minimum-version declaration.
+2. Preserve the 2026-07-12 strengthened live-verifier result as evidence for the
+   deployed private home gateway only; do not infer generic compatibility or a minimum
+   Hermes version. See `docs/hermes-responses-contract.md`.
+3. Complete release validation and a real HA Voice end-to-end test before publishing.
 
 ### Tracker task: Restringir herramientas y acciones sensibles
 
@@ -85,7 +102,8 @@ Only an allowlisted request DTO (`input`, opaque `conversation`, declared model/
 - [x] Remove every executable route from the public policy API, including callable input.
 - [x] Prove a high-impact callable cannot be passed through the public policy API or execute, and test only declaration/allowlist semantics.
 - [x] Document that the inert spike has no Hermes execution sink and does not provide end-to-end enforcement.
-- [ ] Require a verified Hermes read-only/status execution profile at every future request/tool sink, with startup and request-time fail-closed verification.
+- [x] Supersede the inert declaration with the exact gateway-enforced v0.1 policy:
+  tools and MCP are both `none`, with no execution sink or prompt override.
 
 ### Tracker task: Construir cliente HTTP seguro para Hermes
 
@@ -98,7 +116,8 @@ Only an allowlisted request DTO (`input`, opaque `conversation`, declared model/
 - [x] Keep the request interface data-only with no generic paths, headers, tools, or
   action fields.
 - [x] Wire the client into config-entry validation and lifecycle.
-- [ ] Wire the validated client into ConversationEntity behavior (separate tracker task).
+- [x] Wire the validated client into ConversationEntity behavior with a fresh opaque
+  key per HA turn and bounded local ChatLog completion.
 
 ### Tracker task: Implementar ciclo de vida del flujo de configuración
 
@@ -115,7 +134,8 @@ Only an allowlisted request DTO (`input`, opaque `conversation`, declared model/
 2. Skeleton custom component: manifest, config flow, and client lifecycle. Diagnostics
    and redaction are a separate tracker task; no coordinator is required for setup-only
    validation.
-3. Conversation bridge: async process implementation, request/response contract, context key mapping, timeouts, and fallback speech.
+3. Conversation bridge: async process implementation, fixed request/response contract,
+   fresh per-turn opaque keys, timeouts, and fallback speech.
 4. Tests and CI: pytest test matrix against supported HA versions, lint/type checks, secret scan.
 5. Packaging/release: HACS metadata, release checklist, example reverse-proxy guidance, and a v0.1 tagged release after a real HA Voice end-to-end test.
 
@@ -140,6 +160,7 @@ Only an allowlisted request DTO (`input`, opaque `conversation`, declared model/
   without relying on environment-specific routing behavior for an unroutable address.
 - A selected Assist pipeline successfully receives and speaks a Hermes response.
 - Two different Assist conversation IDs do not share context.
-- Network failure, invalid auth, malformed API data, timeout, and Hermes tool failure return short, safe spoken failures rather than throwing an unhandled exception.
+- Network failure, invalid auth, malformed API data, timeout, and invalid response output
+  return short, safe spoken failures rather than throwing an unhandled exception.
 - Docs include a command/request health check and a full setup walkthrough.
 - No token exists in repository files, logs, diagnostics, test fixtures, or screenshots.

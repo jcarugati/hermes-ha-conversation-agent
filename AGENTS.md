@@ -4,22 +4,23 @@
 
 Build a **secure, thin Home Assistant custom Conversation Agent** that lets Home Assistant Assist / Home Assistant Voice send an utterance to Hermes Agent synchronously and speak Hermes’s concise final response.
 
-Home Assistant owns wake word, STT, TTS, Assist pipelines, device registry, and native automations. Hermes owns reasoning and its own configured tools. This component only adapts the official Home Assistant Conversation entity API to Hermes’s documented API.
+Home Assistant owns wake word, STT, TTS, Assist pipelines, device registry, and native automations. Hermes owns reasoning behind a private gateway that server-enforces no tools or MCP. This component only adapts the official Home Assistant Conversation entity API to Hermes’s documented Responses API.
 
 ## v0.1 design boundary
 
-- Target one verified Hermes contract: `POST /v1/responses`, bearer authentication, `stream: false`, and opaque named conversations.
-- Require `GET /v1/capabilities` to advertise `responses_api`; fail closed if it does not.
-- Hermes, not Home Assistant `ChatLog`, owns cross-turn history. Do not transmit HA `ChatLog` history.
-- Use an allowlisted request DTO only: bounded utterance text, opaque conversation key, and explicit supported options. Never transmit HA credentials, context objects, cookies, headers, device/user IDs, or service tokens.
-- Treat every timeout after request dispatch as **indeterminate**. Never automatically retry an action-bearing request.
-- Serialize requests per conversation, bound the cache, define idle expiry/reset, and never cross-contaminate conversations.
+- Target one verified Hermes contract: authenticated `POST /v1/responses` only, `stream: false`, and opaque named conversations. Never use `/v1/chat/completions`.
+- Require authenticated `GET /v1/capabilities` to advertise `responses_api` and exactly `security: {"tool_policy":"none","mcp_policy":"none","server_enforced":true}`; fail closed otherwise.
+- Create a fresh opaque conversation key for every HA turn. Hermes owns any state inside that named turn, but the bridge does not provide cross-turn history.
+- Do not read or transmit inbound HA `ChatLog`; append only bounded Hermes assistant output to the local ChatLog through Home Assistant’s no-tools completion method.
+- Use only the allowlisted request DTO `{model, input, conversation, stream: false}`. Never transmit HA credentials, context objects, cookies, copied headers, device/user IDs, service tokens, tools, MCP, actions, instructions, or prompt overrides.
+- Treat every timeout after request dispatch as **indeterminate**. Never automatically retry a dispatched Responses request.
+- Do not add conversation-key reuse, serialization, caching, idle expiry, reset, persistence, or replay to v0.1 home mode.
 - TLS verification is on by default. Local HTTP requires explicit opt-in and an operator-visible warning.
 
 ## Non-negotiable safety rules
 
 1. **A prompt is not a security boundary.** Do not claim that “ask for confirmation” is enough to protect dangerous actions.
-2. Until Hermes supports an enforceable server-side pending-action protocol that binds action ID, exact parameters, source conversation, and expiry, block high-impact actions in this integration: locks, alarms, garage/door actuators, pet feeders, destructive tasks, and Home Assistant configuration changes.
+2. v0.1 accepts no tools, MCP, actions, Home Assistant controls, executable callbacks, confirmation unlock, instructions, or prompt override. The exact server-enforced policy blocks all actions, including locks, alarms, garage/door actuators, pet feeders, destructive tasks, and Home Assistant configuration changes.
 3. A voice utterance or spoken “confirmo” is not user authentication.
 4. Do not log transcripts or bearer tokens. Redact nested diagnostics and URL query values.
 5. Do not add a public listener, arbitrary URL input, redirects, credential-bearing URLs, shell commands, or Home Assistant Core patches.
@@ -32,11 +33,11 @@ Home Assistant owns wake word, STT, TTS, Assist pipelines, device registry, and 
 - Validate URL scheme/host/path rules, TLS, redirects, JSON content type, response size, output length, and timeouts.
 - Implement config-entry lifecycle fully: unique ID/duplicate prevention, setup, unload/reload, options, reauth/token rotation, diagnostics, and unavailable-server behavior.
 - Keep code small and dependency-light. Do not add STT, TTS, MQTT, a second automation system, or a webhook-first mode to v0.1.
-- Pin minimum supported Home Assistant and Hermes versions only after a contract test proves compatibility.
+- Do not infer generic Hermes compatibility or a minimum Hermes version from the successful 2026-07-12 live verifier run; its evidence applies only to the deployed private home gateway.
 
 ## Tests required before release
 
-Cover: request construction; auth; redirects; TLS and malformed URLs; oversized/non-JSON responses; connect/total timeout; cancellation; same-conversation serialization; conversation expiry/reset; missing/reused IDs; config flow; reload/unload; diagnostics redaction; duplicate config entries; no automatic retry; prompt injection; stale/replayed confirmation; and proof that high-impact actions cannot execute through v0.1.
+Cover: request construction; auth; exact security-policy enforcement; redirects; TLS and malformed URLs; oversized/non-JSON responses; connect/total timeout; cancellation; fresh per-turn conversation keys and entry isolation; config flow; reload/unload; duplicate config entries; no automatic retry; prompt-field exclusion; and proof that no tools, MCP, or actions can execute through v0.1.
 
 CI should run unit tests, lint/type checks, Home Assistant validation/hassfest as applicable, HACS validation, package-layout checks, and secret/dependency scans.
 

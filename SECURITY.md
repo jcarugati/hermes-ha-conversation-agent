@@ -2,10 +2,12 @@
 
 ## Security posture
 
-The v0.1 integration bridges spoken requests only to the simple Hermes home gateway in
-its server-enforced no-tools mode. It does not support a generic remote or tool-capable
-Hermes server. This remains a security-sensitive boundary and prioritizes a small attack
-surface, explicit trust boundaries, and fail-closed behavior over broad automation.
+The v0.1 integration bridges spoken requests only to authenticated
+`POST /v1/responses` on the private Hermes home gateway in its server-enforced no-tools
+mode. It never uses `/v1/chat/completions` and does not support a generic remote or
+tool-capable Hermes server. This remains a security-sensitive boundary and prioritizes
+a small attack surface, explicit trust boundaries, and fail-closed behavior over broad
+automation.
 
 The current integration stores a Hermes URL and bearer token through Home Assistant's
 UI config-entry mechanism, validates health/authenticated capabilities in both the
@@ -27,7 +29,7 @@ exactly `security: {"tool_policy":"none","mcp_policy":"none","server_enforced":t
 Missing, mismatched, or extended policy objects fail closed before configuration, setup,
 or response dispatch. This is the gateway-enforced home boundary, not a prompt claim.
 
-## Proposed security requirements for the v0.1 production bridge
+## Enforced security requirements for v0.1 home mode
 
 On 2026-07-12 the strengthened verifier passed against the deployed private home gateway, including its exact no-tools/MCP policy and two-turn continuity. The evidence is specific to that gateway; no generic Hermes compatibility or minimum version is claimed or pinned.
 
@@ -48,29 +50,30 @@ On 2026-07-12 the strengthened verifier passed against the deployed private home
 - Strict endpoint/response validation, bounded request/response sizes, and bounded deadlines.
 - Home Assistant credentials, cookies, contexts, service tokens, device/user identifiers, and `ChatLog` history never leave HA through this integration.
 - Voice transcripts and bearer tokens never appear in logs, diagnostics, entities, issue templates, fixtures, or Git history.
-- Diagnostics use Home Assistant redaction utilities and are tested against nested sensitive fields.
+- The current integration exposes no diagnostics platform; future diagnostics must use
+  Home Assistant redaction utilities and cover nested sensitive fields before release.
 - No automatic retry after a timeout or disconnect once a request could have reached Hermes.
 - Every Responses API call revalidates authenticated capabilities before POST; a
   failed capability check sends no POST. Once POST is dispatched, HTTP errors,
   malformed/oversized/invalid responses, read timeouts, and disconnects are reported
   as indeterminate and are never retried automatically.
 
-## Proposed v0.1 handling of high-impact actions
+## v0.1 handling of actions and prompt override
 
 A model instruction such as “ask for confirmation” does not reliably protect an action. Voice is also not identity proof.
 
-Until Hermes provides a server-enforced confirmation API that binds a pending action ID, exact action parameters, origin conversation, and expiry, the proposed v0.1 production bridge must block high-impact actions. This includes locks, alarms, doors/garage, pet feeding, deletion/destructive commands, and Home Assistant configuration changes.
+v0.1 home mode exposes no tools, MCP, actions, Home Assistant controls, executable
+callbacks, confirmation route, instructions, or prompt override. This blocks locks,
+alarms, doors/garage actuators, pet feeding, destructive operations, and Home Assistant
+configuration changes together with every lower-impact action rather than attempting
+to classify an utterance.
 
-The committed HA-local prototype is a non-executing read-only/status declaration. Its
-public API accepts no callable, operation, prompt, confirmation, or action parameters,
-and it exposes no executable action route.
-
-This is a prototype/interface property only, not end-to-end enforcement. Hermes tool
-profiles are external server configuration, and this component exposes no local
-tool-execution sink. The current network bridge requires a future verified Hermes
-read-only/status execution profile and enforcement at every request and tool sink
-before it can claim external tool safety. No such attestation or sink integration
-exists in this repository today.
+The boundary is enforced twice: the public request interface contains no executable or
+prompt fields, and configuration, setup, and every response request require the gateway
+to advertise exactly `security: {"tool_policy":"none","mcp_policy":"none",
+"server_enforced":true}`. Missing, different, or extended policy fails closed before
+`POST /v1/responses`. The inert HA-local `safety.py` declaration is not an execution
+sink and does not weaken this gateway-enforced boundary.
 
 ## Reporting a vulnerability
 

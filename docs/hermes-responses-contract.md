@@ -31,7 +31,14 @@ The contract test sends exactly:
 }
 ```
 
-Only these four fields are sent by the verifier and allowed by the planned v0.1 DTO. In particular, it does not send `conversation_history`, `previous_response_id`, `instructions`, `tools`, Home Assistant `ChatLog`, HA identifiers, contexts, credentials, cookies, or copied headers. The verifier tests named conversations only; compatibility or mutual-exclusion behavior for other state mechanisms is unverified.
+Only these four fields are sent by the verifier and allowed by the implemented v0.1
+DTO. In particular, it does not send `conversation_history`, `previous_response_id`,
+`instructions`, prompt overrides, `tools`, MCP, actions, Home Assistant `ChatLog`, HA
+identifiers, contexts, credentials, cookies, or copied headers. The verifier tests
+named conversations only; compatibility or mutual-exclusion behavior for other state
+mechanisms is unverified. The HA bridge generates a separate fresh opaque key for every
+turn; the verifier's two requests reuse one fresh run-scoped key only to prove the
+deployed gateway's named-conversation contract.
 
 The Home Assistant client accepts only the gateway-enforced home mode above. A generic
 remote Hermes server with `responses_api` but missing or different `security` policy is
@@ -43,7 +50,10 @@ The model is the opaque non-empty value returned by `/v1/capabilities`, and the 
 
 The committed live verifier does not send negative, malformed, oversized, or action-bearing requests, so it establishes no Hermes error-envelope or server-limit behavior. Previous source-inspection claims have been removed because that inspection is not reproducible through the committed verifier.
 
-The future client must impose its own utterance, conversation-key, response-byte, deadline, and spoken-output limits. The verifier bounds each response to 1 MiB and never follows redirects; those are verifier safeguards, not claims about Hermes defaults.
+The implemented client imposes its own utterance, conversation-key, request-byte,
+response-byte, deadline, and spoken-output limits. The verifier independently bounds
+each response to 1 MiB and never follows redirects; those are verifier safeguards, not
+claims about Hermes defaults.
 
 ## Automated verification
 

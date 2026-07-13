@@ -5,10 +5,11 @@
 
 ## Mission
 
-The planned v0.1 integration will let Home Assistant Assist pass a transcribed request
+The implemented v0.1 home mode lets Home Assistant Assist pass a transcribed request
 to Hermes and speak Hermes's final response. Home Assistant owns wake word, STT, TTS,
-pipelines, devices, and native automations; Hermes owns reasoning and its configured
-tools. This integration remains a thin adapter to the verified Responses API.
+pipelines, devices, and native automations; Hermes owns reasoning behind a private
+gateway that server-enforces no tools or MCP. This integration is a thin adapter to
+the authenticated `POST /v1/responses` API only; it never uses chat completions.
 
 ## Current status
 
@@ -32,8 +33,8 @@ For each dispatcher turn, the entity sends only the bounded utterance, setup-val
 model, and a fresh opaque conversation key to the client's fixed non-streaming
 Responses API. It does not read or forward inbound HA `ChatLog` history or any context,
 device, user, system-prompt, or credential fields. After Hermes returns, it adds only
-the bounded assistant text to HA's local `ChatLog` through the official no-tools API
-and returns that same text for speech.
+the bounded assistant text to HA's local `ChatLog` through Home Assistant's official
+no-tools completion method and returns that same text for speech.
 This mode is intentionally incompatible with a generic remote Hermes server: authenticated
 `GET /v1/capabilities` must contain exactly `security: {"tool_policy":"none",
 "mcp_policy":"none","server_enforced":true}`. Missing, mismatched, or extended policy
@@ -54,6 +55,7 @@ minimum version or certify generic Hermes servers.
 - Transcripts and bearer tokens must never be logged.
 - A voice utterance or spoken confirmation is not authentication.
 - The accepted home gateway server-enforces no tools or MCP; the bridge exposes no actions.
+- The request surface accepts no tools, MCP, action, instruction, or prompt-override fields.
 - Dispatched requests are never automatically retried when their outcome may be unknown.
 
 The bridge exposes no tool/action request fields or execution callbacks. The inert,
@@ -91,10 +93,12 @@ See the [installation guide](docs/installation-and-usage.md),
 
 ## Remaining v0.1 work
 
-1. Run the strengthened contract verifier against a candidate Hermes release and pin compatibility from evidence.
-2. Implement diagnostics/redaction in its separate tracker task.
-3. Implement conversation locking/cache/TTL/reset/persistence and execution-profile enforcement in separately reviewed tasks.
-4. Run HACS/Home Assistant validation, release checks, and a real Voice end-to-end test before publishing v0.1.
+1. Implement diagnostics/redaction in its separate tracker task.
+2. Run release checks and a real Voice end-to-end test before publishing v0.1.
+
+The successful 2026-07-12 live verifier run is evidence only for the deployed private
+home gateway. It is not a generic Hermes compatibility result and does not establish
+or pin a minimum Hermes version.
 
 ## License
 

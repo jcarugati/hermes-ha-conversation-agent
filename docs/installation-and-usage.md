@@ -82,6 +82,8 @@ Contract checks are documented in
 
 ## Deliberately excluded
 
-This implementation has no diagnostics, coordinator, periodic polling, conversation
+This implementation has no diagnostics, coordinator, periodic polling, reused-key
 locks/cache/TTL/persistence/replay, voice end-to-end support, tool declarations,
-action execution path, or confirmation unlock. These remain separate tracker tasks.
+action execution path, prompt override, or confirmation unlock. Fresh opaque keys per
+HA turn are intentional v0.1 behavior; the omitted lifecycle features are outside v0.1
+rather than incomplete home-mode requirements.
