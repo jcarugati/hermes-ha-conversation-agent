@@ -44,9 +44,9 @@ On 2026-07-12 the strengthened verifier passed against the deployed private home
 - No redirects on authenticated outbound requests.
 - Require the exact authenticated, server-enforced no-tools/MCP security policy during
   configuration, setup, reload, reauthentication, and immediately before every POST.
-- Refuse an injected shared session that currently contains cookies, so Home
-  Assistant cookies cannot accompany Hermes requests. The client never creates a
-  private session.
+- Gateway requests reuse Home Assistant's injected connector through a short-lived
+  cookie-free session. This prevents Home Assistant cookies from accompanying Hermes
+  requests without closing or mutating the shared session.
 - Strict endpoint/response validation, bounded request/response sizes, and bounded deadlines.
 - Home Assistant credentials, cookies, contexts, service tokens, device/user identifiers, and `ChatLog` history never leave HA through this integration.
 - Voice transcripts and bearer tokens never appear in logs, diagnostics, entities, issue templates, fixtures, or Git history.
