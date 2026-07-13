@@ -6,6 +6,8 @@ import asyncio
 import ipaddress
 import json
 import math
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from numbers import Real
 from typing import Any, Final
@@ -280,6 +282,20 @@ class HermesClient:
         if not isinstance(value, str) or not value or len(value) > maximum:
             raise ValueError(f"{name} must be a non-empty string of at most {maximum} characters")
 
+    @asynccontextmanager
+    async def _async_cookie_free_session(self) -> AsyncIterator[Any]:
+        """Reuse HA's connector while preventing shared-session cookie forwarding."""
+        if not isinstance(self._session, aiohttp.ClientSession):
+            yield self._session
+            return
+        async with aiohttp.ClientSession(
+            connector=self._session.connector,
+            connector_owner=False,
+            cookie_jar=aiohttp.DummyCookieJar(),
+            trust_env=False,
+        ) as session:
+            yield session
+
     async def _request_json(
         self,
         method: str,
@@ -294,75 +310,74 @@ class HermesClient:
             headers["Authorization"] = f"Bearer {self._token}"
         if body is not None:
             headers["Content-Type"] = "application/json"
-        headers["Cookie"] = ""
-        cookie_jar = getattr(self._session, "cookie_jar", None)
-        if cookie_jar is not None and any(True for _cookie in cookie_jar):
-            raise _HermesPreDispatchError(
-                f"{method} {path} refused a shared session containing cookies"
-            )
-        try:
-            request = self._session.request(
-                method,
-                f"{self.base_url}{path}",
-                headers=headers,
-                data=body,
-                allow_redirects=False,
-                timeout=self._timeout,
-            )
-        except asyncio.CancelledError:
-            raise
-        except aiohttp.ConnectionTimeoutError:
-            raise _HermesPreDispatchError(f"{method} {path} connect timed out") from None
-        except aiohttp.ClientConnectorError:
-            raise _HermesPreDispatchError(
-                f"{method} {path} connection failed before dispatch"
-            ) from None
-        except HermesClientError:
-            raise HermesClientError(f"{method} {path} request setup failed") from None
-        except (TimeoutError, aiohttp.ClientError):
-            raise HermesClientError(f"{method} {path} request setup failed") from None
-        try:
-            async with request as response:
-                if authenticated and response.status in {401, 403}:
-                    raise HermesAuthenticationError(
-                        f"{method} {path} returned HTTP {response.status}"
-                    )
-                if response.status != 200:
-                    raise HermesProtocolError(f"{method} {path} returned HTTP {response.status}")
-                media_type = (
-                    response.headers.get("Content-Type", "").split(";", 1)[0].strip().lower()
+        async with self._async_cookie_free_session() as request_session:
+            try:
+                request = request_session.request(
+                    method,
+                    f"{self.base_url}{path}",
+                    headers=headers,
+                    data=body,
+                    allow_redirects=False,
+                    timeout=self._timeout,
                 )
-                if media_type != "application/json":
-                    raise HermesProtocolError(f"{method} {path} returned unexpected content type")
-                raw = bytearray()
-                async for chunk in response.content.iter_chunked(64 * 1024):
-                    raw.extend(chunk)
-                    if len(raw) > self._max_response_bytes:
-                        raise HermesProtocolError(
-                            f"{method} {path} response exceeds {self._max_response_bytes} bytes"
+            except asyncio.CancelledError:
+                raise
+            except aiohttp.ConnectionTimeoutError:
+                raise _HermesPreDispatchError(f"{method} {path} connect timed out") from None
+            except aiohttp.ClientConnectorError:
+                raise _HermesPreDispatchError(
+                    f"{method} {path} connection failed before dispatch"
+                ) from None
+            except HermesClientError:
+                raise HermesClientError(f"{method} {path} request setup failed") from None
+            except (TimeoutError, aiohttp.ClientError):
+                raise HermesClientError(f"{method} {path} request setup failed") from None
+            try:
+                async with request as response:
+                    if authenticated and response.status in {401, 403}:
+                        raise HermesAuthenticationError(
+                            f"{method} {path} returned HTTP {response.status}"
                         )
-        except asyncio.CancelledError:
-            raise
-        except aiohttp.ConnectionTimeoutError:
-            raise _HermesPreDispatchError(f"{method} {path} connect timed out") from None
-        except aiohttp.ClientConnectorError:
-            raise _HermesPreDispatchError(
-                f"{method} {path} connection failed before dispatch"
-            ) from None
-        except TimeoutError:
-            if indeterminate:
-                raise HermesIndeterminateError(
-                    f"{method} {path} timed out after dispatch; outcome may be unknown"
+                    if response.status != 200:
+                        raise HermesProtocolError(
+                            f"{method} {path} returned HTTP {response.status}"
+                        )
+                    media_type = (
+                        response.headers.get("Content-Type", "").split(";", 1)[0].strip().lower()
+                    )
+                    if media_type != "application/json":
+                        raise HermesProtocolError(
+                            f"{method} {path} returned unexpected content type"
+                        )
+                    raw = bytearray()
+                    async for chunk in response.content.iter_chunked(64 * 1024):
+                        raw.extend(chunk)
+                        if len(raw) > self._max_response_bytes:
+                            raise HermesProtocolError(
+                                f"{method} {path} response exceeds {self._max_response_bytes} bytes"
+                            )
+            except asyncio.CancelledError:
+                raise
+            except aiohttp.ConnectionTimeoutError:
+                raise _HermesPreDispatchError(f"{method} {path} connect timed out") from None
+            except aiohttp.ClientConnectorError:
+                raise _HermesPreDispatchError(
+                    f"{method} {path} connection failed before dispatch"
                 ) from None
-            raise HermesClientError(f"{method} {path} timed out") from None
-        except HermesClientError:
-            raise
-        except aiohttp.ClientError:
-            if indeterminate:
-                raise HermesIndeterminateError(
-                    f"{method} {path} connection failed after dispatch; outcome may be unknown"
-                ) from None
-            raise HermesClientError(f"{method} {path} transport failure") from None
+            except TimeoutError:
+                if indeterminate:
+                    raise HermesIndeterminateError(
+                        f"{method} {path} timed out after dispatch; outcome may be unknown"
+                    ) from None
+                raise HermesClientError(f"{method} {path} timed out") from None
+            except HermesClientError:
+                raise
+            except aiohttp.ClientError:
+                if indeterminate:
+                    raise HermesIndeterminateError(
+                        f"{method} {path} connection failed after dispatch; outcome may be unknown"
+                    ) from None
+                raise HermesClientError(f"{method} {path} transport failure") from None
         try:
             payload = json.loads(raw)
         except (UnicodeDecodeError, json.JSONDecodeError):

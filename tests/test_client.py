@@ -574,27 +574,39 @@ async def test_real_aiohttp_redirect_does_not_forward_bearer_or_cookie(
         await runner.cleanup()
 
 
-async def test_real_aiohttp_refuses_shared_session_cookies_without_dispatch(
+async def test_real_aiohttp_shared_session_cookies_are_not_forwarded(
     unused_tcp_port: int,
 ) -> None:
-    requests = 0
+    captured: list[dict[str, str]] = []
 
     async def capabilities_handler(request: web.Request) -> web.Response:
-        nonlocal requests
-        requests += 1
+        captured.append(dict(request.headers))
         return web.json_response(capabilities())
+
+    async def response_handler(request: web.Request) -> web.Response:
+        captured.append(dict(request.headers))
+        return web.json_response(completed_response())
 
     app = web.Application()
     app.router.add_get("/v1/capabilities", capabilities_handler)
+    app.router.add_post("/v1/responses", response_handler)
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, "127.0.0.1", unused_tcp_port)
     await site.start()
     try:
-        async with aiohttp.ClientSession(cookie_jar=aiohttp.CookieJar(unsafe=True)) as session:
+        connector = aiohttp.TCPConnector()
+        async with aiohttp.ClientSession(
+            connector=connector,
+            cookie_jar=aiohttp.CookieJar(unsafe=True),
+        ) as session:
             session.cookie_jar.update_cookies(
-                {"ha_session": "private-cookie"},
-                response_url=URL(f"http://127.0.0.1:{unused_tcp_port}"),
+                {"ha_capabilities": "private-cookie"},
+                response_url=URL(f"http://127.0.0.1:{unused_tcp_port}/v1/capabilities"),
+            )
+            session.cookie_jar.update_cookies(
+                {"ha_response": "private-cookie"},
+                response_url=URL(f"http://127.0.0.1:{unused_tcp_port}/v1/responses"),
             )
             client = HermesClient(
                 session,
@@ -602,9 +614,17 @@ async def test_real_aiohttp_refuses_shared_session_cookies_without_dispatch(
                 "fixture-secret",
                 allow_insecure_http=True,
             )
-            with pytest.raises(HermesClientError, match="containing cookies"):
-                await client.async_capabilities()
-            assert requests == 0
+            response = await client.async_respond(
+                model="fixture-model",
+                utterance="status",
+                conversation="opaque-conversation",
+            )
+            assert response.text == "safe status"
+            assert len(captured) == 2
+            assert all("Cookie" not in headers for headers in captured)
+            assert session.connector is connector
+            assert not session.closed
+            assert not connector.closed
     finally:
         await runner.cleanup()
 

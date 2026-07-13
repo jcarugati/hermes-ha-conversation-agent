@@ -68,8 +68,9 @@ URL, bearer token, and explicit limits from the entity caller; calls only `/heal
 `/v1/capabilities`, and `/v1/responses`; disables redirects; uses HTTPS by default;
 and bounds payloads, output, connect time, and total time. It exposes no arbitrary
 path, header, tool, or action parameters. Configuration, setup-time validation, and the
-ConversationEntity request/response wiring now exist. The client uses only the injected shared
-async session and refuses to dispatch if that session currently contains cookies.
+ConversationEntity request/response wiring now exist. The client uses Home Assistant's
+injected connector through a short-lived cookie-free session so cookies cannot cross
+this boundary; it does not mutate or close Home Assistant's shared session.
 
 Each `async_respond` validates bounded request data, then performs authenticated
 `GET /v1/capabilities`. It sends exactly one `POST /v1/responses` only when the
