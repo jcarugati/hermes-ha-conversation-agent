@@ -231,12 +231,17 @@ class HermesClient:
         if not isinstance(endpoints, dict) or endpoints.get("responses") != expected:
             raise HermesProtocolError("/v1/capabilities does not advertise the responses endpoint")
         security = payload.get("security")
-        if features.get("chat_completions") is True and security is None:
-            return HermesCapabilities(
-                model=_required_string(payload, "model", "/v1/capabilities"),
-                tool_policy="full_agent",
-                mcp_policy="server_managed",
-                server_enforced=False,
+        if features.get("chat_completions") is True:
+            if "security" not in payload:
+                return HermesCapabilities(
+                    model=_required_string(payload, "model", "/v1/capabilities"),
+                    tool_policy="full_agent",
+                    mcp_policy="server_managed",
+                    server_enforced=False,
+                )
+            raise HermesProtocolError(
+                "/v1/capabilities is neither a full Hermes API server nor the "
+                "exact no-tools gateway"
             )
 
         expected_security = {
