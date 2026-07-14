@@ -14,7 +14,7 @@ Responses may contain Hermes tool records before the final assistant message. A 
 
 ## Capability validation
 
-Before configuration, setup, and every request, the component validates health and authenticated capabilities. The server must advertise bearer authentication, `responses_api: true`, `chat_completions: true`, the fixed Responses endpoint, and no custom `security` object. Other contracts fail closed before dispatch.
+Before configuration, setup, and every request, the component validates authenticated capabilities. The server must advertise bearer authentication, `responses_api: true`, `chat_completions: true`, the fixed Responses endpoint, and no custom `security` object. Other contracts fail closed before dispatch.
 
 ## Model selection
 
