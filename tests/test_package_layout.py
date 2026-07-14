@@ -2,6 +2,7 @@
 
 import json
 from pathlib import Path
+from struct import unpack
 from typing import Any
 
 ROOT = Path(__file__).parents[1]
@@ -53,3 +54,15 @@ def test_bridge_scope_excludes_out_of_scope_runtime_features() -> None:
     }
     assert excluded_modules.isdisjoint(path.name for path in INTEGRATION.iterdir())
     assert (INTEGRATION / "conversation.py").is_file()
+
+
+def test_repository_logo_is_packaged_and_documented_without_brands_claim() -> None:
+    """The local project logo ships with the integration and is described accurately."""
+    logo = INTEGRATION / "assets" / "logo.png"
+    content = logo.read_bytes()
+    assert content.startswith(b"\x89PNG\r\n\x1a\n")
+    assert unpack(">II", content[16:24]) == (1024, 1024)
+
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    assert "custom_components/hermes_conversation/assets/logo.png" in readme
+    assert "not published through Home Assistant Brands" in readme

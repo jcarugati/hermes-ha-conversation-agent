@@ -16,6 +16,7 @@ from .const import (
     CONF_ALLOW_INSECURE_HTTP,
     CONF_CONNECT_TIMEOUT,
     CONF_MAX_OUTPUT_CHARS,
+    CONF_MODEL_ALIAS,
     CONF_TOKEN,
     CONF_TOTAL_TIMEOUT,
     CONF_URL,
@@ -34,6 +35,7 @@ class HermesRuntimeData:
     client: HermesClient
     model: str
     full_agent: bool
+    model_alias: str | None = None
 
 
 type HermesConfigEntry = ConfigEntry[HermesRuntimeData]
@@ -70,10 +72,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: HermesConfigEntry) -> bo
         raise ConfigEntryAuthFailed("Hermes rejected stored authentication") from err
     except (HermesClientError, ValueError) as err:
         raise ConfigEntryNotReady("Hermes endpoint validation failed") from err
+    model_alias = entry.options.get(CONF_MODEL_ALIAS, "")
     entry.runtime_data = HermesRuntimeData(
         client=client,
         model=capabilities.model,
         full_agent=capabilities.tool_policy == "full_agent",
+        model_alias=model_alias or None,
     )
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True

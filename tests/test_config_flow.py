@@ -3,8 +3,10 @@
 import asyncio
 from unittest.mock import AsyncMock, patch
 
+import pytest
 from homeassistant.config_entries import SOURCE_IMPORT, SOURCE_REAUTH, SOURCE_USER
 from homeassistant.core import HomeAssistant
+from homeassistant.data_entry_flow import InvalidData
 from pytest_homeassistant_custom_component.common import (  # type: ignore[import-untyped]
     MockConfigEntry,
 )
@@ -18,6 +20,7 @@ from custom_components.hermes_conversation.const import (
     CONF_ALLOW_INSECURE_HTTP,
     CONF_CONNECT_TIMEOUT,
     CONF_MAX_OUTPUT_CHARS,
+    CONF_MODEL_ALIAS,
     CONF_TOKEN,
     CONF_TOTAL_TIMEOUT,
     CONF_URL,
@@ -116,16 +119,14 @@ async def test_invalid_or_unavailable_server_is_not_saved(hass: HomeAssistant) -
     assert result["errors"] == {"base": "cannot_connect"}
 
 
-async def test_generic_responses_api_without_home_security_policy_cannot_configure(
+async def test_non_direct_responses_api_cannot_configure(
     hass: HomeAssistant,
 ) -> None:
-    """A generic remote Hermes server is outside the gateway-only contract."""
+    """A Responses-only server is outside the direct Hermes contract."""
     with patch(
         "custom_components.hermes_conversation.config_flow.async_validate_connection",
         new=AsyncMock(
-            side_effect=HermesProtocolError(
-                "/v1/capabilities does not advertise the exact no-tools security policy"
-            )
+            side_effect=HermesProtocolError("/v1/capabilities does not advertise chat_completions")
         ),
     ):
         result = await hass.config_entries.flow.async_init(
@@ -157,7 +158,7 @@ async def test_duplicate_normalized_url_is_rejected(hass: HomeAssistant) -> None
     assert result["reason"] == "already_configured"
 
 
-async def test_duplicate_legacy_noncanonical_entry_is_rejected(hass: HomeAssistant) -> None:
+async def test_duplicate_noncanonical_entry_is_rejected(hass: HomeAssistant) -> None:
     """Canonical comparison also covers entries stored before canonical identities."""
     entry = MockConfigEntry(
         domain=DOMAIN,
@@ -388,6 +389,7 @@ async def test_options_are_non_secret_and_reload_entry(hass: HomeAssistant) -> N
         CONF_CONNECT_TIMEOUT: 3.0,
         CONF_TOTAL_TIMEOUT: 20.0,
         CONF_MAX_OUTPUT_CHARS: 4096,
+        CONF_MODEL_ALIAS: "",
     }
     reload_entry.assert_called_once_with(entry.entry_id)
 
@@ -421,3 +423,79 @@ async def test_http_options_require_acknowledgement_before_changes(
     )
     assert result["type"] == "form"
     assert result["step_id"] == "init"
+
+
+async def test_options_include_optional_model_alias(hass: HomeAssistant) -> None:
+    """Options expose an optional model alias field that defaults to empty."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_URL: "https://hermes.example.test", CONF_TOKEN: "secret"},
+    )
+    entry.add_to_hass(hass)
+
+    with patch.object(hass.config_entries, "async_schedule_reload"):
+        result = await hass.config_entries.options.async_init(entry.entry_id)
+        assert result["type"] == "form"
+        assert result["data_schema"] is not None
+        schema = result["data_schema"].schema
+        markers = {marker.schema: marker for marker in schema}
+        assert CONF_MODEL_ALIAS in markers
+        assert markers[CONF_MODEL_ALIAS].default() == ""
+
+        result = await hass.config_entries.options.async_configure(
+            result["flow_id"],
+            {
+                CONF_CONNECT_TIMEOUT: 5.0,
+                CONF_TOTAL_TIMEOUT: 30.0,
+                CONF_MAX_OUTPUT_CHARS: 8192,
+                CONF_MODEL_ALIAS: "custom-route",
+            },
+        )
+
+    assert result["type"] == "create_entry"
+    assert entry.options[CONF_MODEL_ALIAS] == "custom-route"
+
+
+async def test_options_model_alias_empty_is_accepted(hass: HomeAssistant) -> None:
+    """Empty model alias is valid and means 'use capabilities model'."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_URL: "https://hermes.example.test", CONF_TOKEN: "secret"},
+    )
+    entry.add_to_hass(hass)
+
+    with patch.object(hass.config_entries, "async_schedule_reload"):
+        result = await hass.config_entries.options.async_init(entry.entry_id)
+        result = await hass.config_entries.options.async_configure(
+            result["flow_id"],
+            {
+                CONF_CONNECT_TIMEOUT: 5.0,
+                CONF_TOTAL_TIMEOUT: 30.0,
+                CONF_MAX_OUTPUT_CHARS: 8192,
+                CONF_MODEL_ALIAS: "",
+            },
+        )
+
+    assert result["type"] == "create_entry"
+    assert entry.options[CONF_MODEL_ALIAS] == ""
+
+
+async def test_options_model_alias_is_bounded(hass: HomeAssistant) -> None:
+    """A model alias cannot exceed the client's model-field limit."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_URL: "https://hermes.example.test", CONF_TOKEN: "secret"},
+    )
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    with pytest.raises(InvalidData, match=CONF_MODEL_ALIAS):
+        await hass.config_entries.options.async_configure(
+            result["flow_id"],
+            {
+                CONF_CONNECT_TIMEOUT: 5.0,
+                CONF_TOTAL_TIMEOUT: 30.0,
+                CONF_MAX_OUTPUT_CHARS: 8192,
+                CONF_MODEL_ALIAS: "x" * 513,
+            },
+        )

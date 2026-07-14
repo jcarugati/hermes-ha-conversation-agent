@@ -2,26 +2,29 @@
 
 Install through HACS or copy `custom_components/hermes_conversation/` into Home Assistant and restart Home Assistant. Configure it from **Settings → Devices & services → Add integration → Hermes Conversation Agent**.
 
-## Endpoint modes
+## Direct Hermes endpoint
 
-Enter a private root URL and bearer token. The integration validates `/health`, authenticated `/v1/capabilities`, and the fixed `/v1/responses` endpoint before saving.
+Enter the private root URL and bearer token for the API server of the same running Hermes instance used by other channels. The integration validates `/health`, authenticated `/v1/capabilities`, and the fixed `/v1/responses` endpoint before saving.
 
-### Direct Hermes API server
+The server must advertise `responses_api: true`, `chat_completions: true`, bearer-required authentication, the fixed `POST /v1/responses` route, and no custom `security` object. No alternate gateway contract is supported. The integration inherits the configured Hermes capability surface; it is not a home-only sandbox, and voice is not user authentication.
 
-Use the standard API server of the running Hermes instance when Assist should use the same capabilities as other Hermes channels. It must advertise `responses_api: true`, `chat_completions: true`, bearer-required authentication, and no custom `security` object. This mode inherits the configured Hermes capability surface; it is not a home-only sandbox, and voice is not user authentication. Keep the server private and disable unnecessary browser CORS.
+Keep the endpoint private and disable unnecessary browser CORS. HTTPS is preferred; private HTTP requires explicit acknowledgement. Do not place credentials in URLs.
 
-### Legacy no-tools gateway
+## Optional model alias
 
-A legacy private gateway remains supported only with the exact server-enforced no-tools policy. It is useful as a fallback while the direct endpoint is being verified.
+Open the config entry's options to set **Model alias**.
 
-The endpoint must be private. HTTPS is preferred; private HTTP requires explicit acknowledgement. Do not place credentials in URLs.
+- Leave it blank to use the model advertised by `/v1/capabilities`, preserving the direct-server default behavior.
+- Enter a non-empty Hermes model/routing alias to send that alias as the `model` value to the same API server.
+
+The alias is bounded to 512 characters, is stored as a non-secret config-entry option, and does not change the endpoint. Both paths send the same four-field request DTO.
 
 ## Verify safely
 
-1. Keep the existing Voice pipeline unchanged.
-2. Create a separate direct config entry and pipeline.
-3. Test a simple spoken text request.
-4. Test a read-only Home Assistant question.
-5. Only after an explicitly authorized harmless action succeeds, enable/control-route the direct agent and retire the fallback.
+1. Keep the existing Voice pipeline unchanged while adding the direct entry.
+2. Test a simple spoken text request.
+3. Test a read-only Home Assistant question.
+4. Test an explicitly authorized harmless action.
+5. Only then route normal control traffic to the direct agent.
 
-Every turn sends only a bounded utterance, validated model, and fresh opaque conversation key. HA ChatLog remains local and requests are not automatically retried after dispatch.
+Every turn sends only a bounded utterance, selected model value, and fresh opaque conversation key. HA ChatLog remains local and requests are not automatically retried after dispatch.

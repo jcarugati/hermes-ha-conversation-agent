@@ -52,9 +52,13 @@
         "data": {
           "connect_timeout": "Connect timeout (seconds)",
           "max_output_chars": "Maximum response characters",
+          "model_alias": "Model alias (optional)",
           "total_timeout": "Total timeout (seconds)"
         },
-        "title": "Hermes request limits"
+        "data_description": {
+          "model_alias": "Leave blank to use the model advertised by Hermes. A nonblank alias is sent as the model to this same server."
+        },
+        "title": "Hermes request settings"
       }
     }
   }

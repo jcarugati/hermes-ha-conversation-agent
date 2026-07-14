@@ -29,9 +29,7 @@ class ContractEvidence:
     model: str
     health_status: str
     responses_api: bool
-    tool_policy: str
-    mcp_policy: str
-    server_enforced: bool
+    chat_completions: bool
     response_status: str
     response_object: str
     conversation_continuity: bool
@@ -216,14 +214,11 @@ def verify_contract(
     expected_response_endpoint = {"method": "POST", "path": "/v1/responses"}
     if not isinstance(endpoints, dict) or endpoints.get("responses") != expected_response_endpoint:
         raise ContractError("/v1/capabilities does not advertise the required responses endpoint")
-    expected_security = {
-        "tool_policy": "none",
-        "mcp_policy": "none",
-        "server_enforced": True,
-    }
-    if capabilities.get("security") != expected_security:
+    if features.get("chat_completions") is not True:
+        raise ContractError("/v1/capabilities does not advertise chat_completions")
+    if "security" in capabilities:
         raise ContractError(
-            "/v1/capabilities does not advertise the exact server-enforced no-tools security policy"
+            "/v1/capabilities direct server must not advertise a custom security policy"
         )
     model = _required_string(capabilities, "model", "/v1/capabilities")
 
@@ -270,9 +265,7 @@ def verify_contract(
         model=model,
         health_status=health_status,
         responses_api=True,
-        tool_policy="none",
-        mcp_policy="none",
-        server_enforced=True,
+        chat_completions=True,
         response_status="completed",
         response_object="response",
         conversation_continuity=True,

@@ -4,7 +4,7 @@
 Voice device → Home Assistant Assist STT
   → Hermes ConversationEntity
   → authenticated private POST /v1/responses
-  → existing Hermes API server or legacy no-tools gateway
+  → direct API server of the existing Hermes instance
   → final text → Home Assistant TTS → voice device
 ```
 
@@ -14,10 +14,14 @@ Home Assistant retains voice, Assist, and Home Assistant credentials. The integr
 
 The bridge accepts only the fixed health, capabilities, and Responses endpoints, disables redirects, validates bounded JSON, and emits only `{model, input, conversation, stream: false}`. It never exposes an HA service callback or tool schema.
 
-## Capability contracts
+## Direct capability contract
 
-A direct Hermes server advertises `responses_api` and `chat_completions` with bearer auth and no `security` key. It owns tool/MCP policy, so it can use the same configured abilities as the existing Hermes instance.
+The server must identify as Hermes, require bearer authentication, advertise `responses_api: true` and `chat_completions: true`, publish the fixed Responses route, and omit custom `security`. This is checked during configuration, setup, and immediately before every Responses dispatch. A Responses-only or custom gateway contract is rejected before POST.
 
-A legacy gateway has no `chat_completions` feature and must supply the exact server-enforced no-tools security object. Contracts are mutually exclusive and validated immediately before dispatch.
+Hermes owns the tool/MCP policy and can use the same configured abilities as its other channels. The Conversation entity therefore advertises Home Assistant control support, but that UI capability is not an authorization boundary.
 
-Direct operation is rolled out in parallel: conversational text first, then read-only HA access, then an explicitly authorized harmless action. Do not remove a functioning fallback before those checks.
+## Model data flow
+
+Setup retains the capabilities-advertised model as the entry's validated default and separately stores an optional model alias. On each turn, the client revalidates that the same default is still advertised. It then sends either the default model (blank alias) or the configured alias (nonblank alias) as the value of the existing `model` field and validates the response against that selected value.
+
+The alias never appears as a separate HTTP field. The remaining DTO is the bounded utterance as `input`, a fresh opaque per-turn `conversation`, and `stream: false`.

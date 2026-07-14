@@ -18,6 +18,7 @@ from custom_components.hermes_conversation.client import (
 )
 from custom_components.hermes_conversation.const import (
     CONF_ALLOW_INSECURE_HTTP,
+    CONF_MODEL_ALIAS,
     CONF_TOKEN,
     CONF_URL,
     DOMAIN,
@@ -25,9 +26,9 @@ from custom_components.hermes_conversation.const import (
 
 HOME_CAPABILITIES = HermesCapabilities(
     model="validated-model",
-    tool_policy="none",
-    mcp_policy="none",
-    server_enforced=True,
+    tool_policy="full_agent",
+    mcp_policy="server_managed",
+    server_enforced=False,
 )
 
 
@@ -72,10 +73,10 @@ async def test_unavailable_setup_raises_not_ready(hass: HomeAssistant) -> None:
     assert entry.state is ConfigEntryState.SETUP_RETRY
 
 
-async def test_generic_responses_api_without_home_security_policy_cannot_setup(
+async def test_non_direct_responses_api_cannot_setup(
     hass: HomeAssistant,
 ) -> None:
-    """Stored generic Hermes entries remain fail-closed during lifecycle setup."""
+    """Stored non-direct Hermes entries remain fail-closed during lifecycle setup."""
     entry = MockConfigEntry(
         domain=DOMAIN,
         data={CONF_URL: "https://generic-hermes.example.test", CONF_TOKEN: "secret"},
@@ -85,9 +86,7 @@ async def test_generic_responses_api_without_home_security_policy_cannot_setup(
     with patch(
         "custom_components.hermes_conversation.async_validate_connection",
         new=AsyncMock(
-            side_effect=HermesProtocolError(
-                "/v1/capabilities does not advertise the exact no-tools security policy"
-            )
+            side_effect=HermesProtocolError("/v1/capabilities does not advertise chat_completions")
         ),
     ):
         assert not await hass.config_entries.async_setup(entry.entry_id)
@@ -166,3 +165,42 @@ async def test_unload_clears_runtime_and_reload_revalidates(hass: HomeAssistant)
     assert entry.state is ConfigEntryState.LOADED
     assert entry.runtime_data is not first_client
     assert validate.await_count == 2
+
+
+async def test_model_alias_option_overrides_capabilities_model(hass: HomeAssistant) -> None:
+    """When model_alias is configured, runtime uses it instead of the capabilities model."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_URL: "https://hermes.example.test", CONF_TOKEN: "secret"},
+        options={CONF_MODEL_ALIAS: "custom-route-alias"},
+    )
+    entry.add_to_hass(hass)
+
+    with patch(
+        "custom_components.hermes_conversation.async_validate_connection",
+        new=AsyncMock(return_value=HOME_CAPABILITIES),
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+
+    assert entry.state is ConfigEntryState.LOADED
+    assert entry.runtime_data.model == "validated-model"
+    assert entry.runtime_data.model_alias == "custom-route-alias"
+
+
+async def test_no_model_alias_uses_capabilities_model(hass: HomeAssistant) -> None:
+    """Without model_alias, runtime falls back to the capabilities-advertised model."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_URL: "https://hermes.example.test", CONF_TOKEN: "secret"},
+    )
+    entry.add_to_hass(hass)
+
+    with patch(
+        "custom_components.hermes_conversation.async_validate_connection",
+        new=AsyncMock(return_value=HOME_CAPABILITIES),
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+
+    assert entry.state is ConfigEntryState.LOADED
+    assert entry.runtime_data.model == "validated-model"
+    assert entry.runtime_data.model_alias is None

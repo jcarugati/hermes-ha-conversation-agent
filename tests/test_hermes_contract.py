@@ -39,11 +39,8 @@ class _HermesFixture(BaseHTTPRequestHandler):
     post_count = 0
     markers: dict[str, str] = {}
     reuse_response_id = False
-    security: object = {
-        "tool_policy": "none",
-        "mcp_policy": "none",
-        "server_enforced": True,
-    }
+    chat_completions: object = True
+    security: object | None = None
 
     def log_message(self, format: str, *args: object) -> None:
         """Keep deterministic tests silent."""
@@ -80,18 +77,20 @@ class _HermesFixture(BaseHTTPRequestHandler):
         elif self.path == "/health":
             self._json(200, {"status": "ok", "platform": "hermes-agent", "version": "0.18.2"})
         elif self.path == "/v1/capabilities":
-            self._json(
-                200,
-                {
-                    "object": "hermes.api_server.capabilities",
-                    "platform": "hermes-agent",
-                    "model": "fixture-model",
-                    "auth": {"type": "bearer", "required": True},
-                    "features": {"responses_api": True},
-                    "endpoints": {"responses": {"method": "POST", "path": "/v1/responses"}},
-                    "security": self.security,
+            payload: dict[str, object] = {
+                "object": "hermes.api_server.capabilities",
+                "platform": "hermes-agent",
+                "model": "fixture-model",
+                "auth": {"type": "bearer", "required": True},
+                "features": {
+                    "responses_api": True,
+                    "chat_completions": self.chat_completions,
                 },
-            )
+                "endpoints": {"responses": {"method": "POST", "path": "/v1/responses"}},
+            }
+            if self.security is not None:
+                payload["security"] = self.security
+            self._json(200, payload)
         else:
             self._json(404, {"error": {"message": "not found"}})
 
@@ -136,11 +135,8 @@ class ContractTest(unittest.TestCase):
         _HermesFixture.post_count = 0
         _HermesFixture.markers = {}
         _HermesFixture.reuse_response_id = False
-        _HermesFixture.security = {
-            "tool_policy": "none",
-            "mcp_policy": "none",
-            "server_enforced": True,
-        }
+        _HermesFixture.chat_completions = True
+        _HermesFixture.security = None
         self.server = ThreadingHTTPServer(("127.0.0.1", 0), _HermesFixture)
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         self.thread.start()
@@ -163,9 +159,7 @@ class ContractTest(unittest.TestCase):
         self.assertEqual(evidence.model, "fixture-model")
         self.assertEqual(evidence.response_status, "completed")
         self.assertTrue(evidence.conversation_continuity)
-        self.assertEqual(evidence.tool_policy, "none")
-        self.assertEqual(evidence.mcp_policy, "none")
-        self.assertTrue(evidence.server_enforced)
+        self.assertTrue(evidence.chat_completions)
         self.assertEqual(
             [request["path"] for request in _HermesFixture.requests],
             ["/health", "/v1/capabilities", "/v1/responses", "/v1/responses"],
@@ -282,39 +276,33 @@ class ContractTest(unittest.TestCase):
         self.assertEqual(len(_HermesFixture.requests), 2)
 
     @pytest.mark.allow_hosts(["127.0.0.1"])
-    def test_rejects_any_non_exact_security_policy_before_post(self) -> None:
-        policies: tuple[tuple[str, object], ...] = (
-            ("missing", None),
-            ("missing key", {"tool_policy": "none", "mcp_policy": "none"}),
-            (
-                "mismatched value",
-                {
-                    "tool_policy": "read_only",
-                    "mcp_policy": "none",
-                    "server_enforced": True,
-                },
-            ),
-            (
-                "extended",
-                {
-                    "tool_policy": "none",
-                    "mcp_policy": "none",
-                    "server_enforced": True,
-                    "prompt_policy": "none",
-                },
-            ),
-        )
-        for label, policy in policies:
-            with self.subTest(label=label):
+    def test_rejects_invalid_chat_completions_before_post(self) -> None:
+        invalid_values: tuple[object, ...] = (None, False, "true", 1, {}, [])
+        for value in invalid_values:
+            with self.subTest(value=value):
                 _HermesFixture.requests = []
                 _HermesFixture.post_count = 0
-                _HermesFixture.security = policy
-                with self.assertRaisesRegex(ContractError, "security policy"):
+                _HermesFixture.chat_completions = value
+                with self.assertRaisesRegex(ContractError, "chat_completions"):
                     verify_contract(self.base_url, "fixture-secret")
                 self.assertEqual(
                     [request["path"] for request in _HermesFixture.requests],
                     ["/health", "/v1/capabilities"],
                 )
+
+    @pytest.mark.allow_hosts(["127.0.0.1"])
+    def test_rejects_custom_security_policy_before_post(self) -> None:
+        _HermesFixture.security = {
+            "tool_policy": "none",
+            "mcp_policy": "none",
+            "server_enforced": True,
+        }
+        with self.assertRaisesRegex(ContractError, "custom security policy"):
+            verify_contract(self.base_url, "fixture-secret")
+        self.assertEqual(
+            [request["path"] for request in _HermesFixture.requests],
+            ["/health", "/v1/capabilities"],
+        )
 
     @pytest.mark.allow_hosts(["127.0.0.1"])
     def test_rejects_text_without_explicit_output_text_structure(self) -> None:
@@ -555,9 +543,7 @@ class LiveContractTest(unittest.TestCase):
         self.assertTrue(evidence.hermes_version)
         self.assertTrue(evidence.model)
         self.assertEqual(evidence.response_status, "completed")
-        self.assertEqual(evidence.tool_policy, "none")
-        self.assertEqual(evidence.mcp_policy, "none")
-        self.assertTrue(evidence.server_enforced)
+        self.assertTrue(evidence.chat_completions)
 
 
 if __name__ == "__main__":

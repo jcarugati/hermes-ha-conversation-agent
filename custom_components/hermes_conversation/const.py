@@ -17,12 +17,14 @@ CONF_ACKNOWLEDGE_INSECURE_HTTP: Final = "acknowledge_insecure_http"
 CONF_CONNECT_TIMEOUT: Final = "connect_timeout"
 CONF_TOTAL_TIMEOUT: Final = "total_timeout"
 CONF_MAX_OUTPUT_CHARS: Final = "max_output_chars"
+CONF_MODEL_ALIAS: Final = "model_alias"
 
 __all__ = [
     "CONF_ACKNOWLEDGE_INSECURE_HTTP",
     "CONF_ALLOW_INSECURE_HTTP",
     "CONF_CONNECT_TIMEOUT",
     "CONF_MAX_OUTPUT_CHARS",
+    "CONF_MODEL_ALIAS",
     "CONF_TOKEN",
     "CONF_TOTAL_TIMEOUT",
     "CONF_URL",

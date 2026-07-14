@@ -209,12 +209,7 @@ class HermesClient:
         return HermesHealth(version=_required_string(payload, "version", "/health"))
 
     async def async_capabilities(self) -> HermesCapabilities:
-        """Validate an authenticated Hermes Responses API endpoint.
-
-        A stock Hermes API server advertises ``chat_completions`` and owns its
-        full tool policy. The legacy private no-tools gateway remains accepted
-        only when it advertises its exact server-enforced policy.
-        """
+        """Validate an authenticated direct Hermes Responses API endpoint."""
         payload = await self._request_json("GET", "/v1/capabilities", authenticated=True)
         if payload.get("object") != "hermes.api_server.capabilities":
             raise HermesProtocolError(
@@ -230,46 +225,35 @@ class HermesClient:
         expected = {"method": "POST", "path": "/v1/responses"}
         if not isinstance(endpoints, dict) or endpoints.get("responses") != expected:
             raise HermesProtocolError("/v1/capabilities does not advertise the responses endpoint")
-        security = payload.get("security")
-        if "chat_completions" in features:
-            if features["chat_completions"] is True and "security" not in payload:
-                return HermesCapabilities(
-                    model=_required_string(payload, "model", "/v1/capabilities"),
-                    tool_policy="full_agent",
-                    mcp_policy="server_managed",
-                    server_enforced=False,
-                )
+        if features.get("chat_completions") is not True:
+            raise HermesProtocolError("/v1/capabilities does not advertise chat_completions")
+        if "security" in payload:
             raise HermesProtocolError(
-                "/v1/capabilities is neither a full Hermes API server nor the "
-                "exact no-tools gateway"
-            )
-
-        expected_security = {
-            "tool_policy": "none",
-            "mcp_policy": "none",
-            "server_enforced": True,
-        }
-        if not isinstance(security, dict) or security != expected_security:
-            raise HermesProtocolError(
-                "/v1/capabilities is neither a full Hermes API server nor the "
-                "exact no-tools gateway"
+                "/v1/capabilities direct server must not advertise a custom security policy"
             )
         return HermesCapabilities(
             model=_required_string(payload, "model", "/v1/capabilities"),
-            tool_policy=security["tool_policy"],
-            mcp_policy=security["mcp_policy"],
-            server_enforced=security["server_enforced"],
+            tool_policy="full_agent",
+            mcp_policy="server_managed",
+            server_enforced=False,
         )
 
     async def async_respond(
-        self, *, model: str, utterance: str, conversation: str
+        self, *, model: str, utterance: str, conversation: str, model_alias: str | None = None
     ) -> HermesResponse:
-        """Submit one bounded, non-streaming, data-only named-conversation turn."""
+        """Submit one bounded, non-streaming, data-only named-conversation turn.
+
+        When *model_alias* is provided, it becomes the wire and response model
+        while *model* remains the capabilities-advertised default.
+        """
         self._validate_request_string("model", model, MAX_MODEL_CHARS)
+        if model_alias is not None:
+            self._validate_request_string("model_alias", model_alias, MAX_MODEL_CHARS)
         self._validate_request_string("utterance", utterance, self._max_utterance_chars)
         self._validate_request_string("conversation", conversation, MAX_CONVERSATION_CHARS)
+        request_model = model_alias or model
         body: dict[str, object] = {
-            "model": model,
+            "model": request_model,
             "input": utterance,
             "conversation": conversation,
             "stream": False,
@@ -284,7 +268,7 @@ class HermesClient:
             payload = await self._request_json(
                 "POST", "/v1/responses", authenticated=True, body=encoded, indeterminate=True
             )
-            return self._parse_response(payload, model)
+            return self._parse_response(payload, request_model)
         except asyncio.CancelledError:
             raise
         except HermesIndeterminateError:

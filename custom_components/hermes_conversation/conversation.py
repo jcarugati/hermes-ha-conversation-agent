@@ -69,28 +69,35 @@ class HermesConversationEntity(conversation.ConversationEntity):
         chat_log: conversation.ChatLog,
     ) -> conversation.ConversationResult:
         """Submit only allowlisted request fields and return final speech."""
-        response = intent.IntentResponse(language=user_input.language)
+        intent_response = intent.IntentResponse(language=user_input.language)
+        request = {
+            "model": self._entry.runtime_data.model,
+            "utterance": user_input.text,
+            "conversation": secrets.token_urlsafe(24),
+        }
+        if self._entry.runtime_data.model_alias:
+            request["model_alias"] = self._entry.runtime_data.model_alias
         try:
-            result = await self._entry.runtime_data.client.async_respond(
-                model=self._entry.runtime_data.model,
-                utterance=user_input.text,
-                conversation=secrets.token_urlsafe(24),
-            )
+            result = await self._entry.runtime_data.client.async_respond(**request)
         except HermesAuthenticationError:
             self._entry.async_start_reauth(self.hass)
-            response.async_set_error(intent.IntentResponseErrorCode.UNKNOWN, _AUTH_ERROR)
+            intent_response.async_set_error(intent.IntentResponseErrorCode.UNKNOWN, _AUTH_ERROR)
         except HermesIndeterminateError:
-            response.async_set_error(intent.IntentResponseErrorCode.UNKNOWN, _INDETERMINATE_ERROR)
+            intent_response.async_set_error(
+                intent.IntentResponseErrorCode.UNKNOWN, _INDETERMINATE_ERROR
+            )
         except HermesClientError:
-            response.async_set_error(intent.IntentResponseErrorCode.UNKNOWN, _UNAVAILABLE_ERROR)
+            intent_response.async_set_error(
+                intent.IntentResponseErrorCode.UNKNOWN, _UNAVAILABLE_ERROR
+            )
         except ValueError:
-            response.async_set_error(intent.IntentResponseErrorCode.UNKNOWN, _INVALID_ERROR)
+            intent_response.async_set_error(intent.IntentResponseErrorCode.UNKNOWN, _INVALID_ERROR)
         else:
             chat_log.async_add_assistant_content_without_tools(
                 conversation.AssistantContent(agent_id=self.entity_id, content=result.text)
             )
-            response.async_set_speech(result.text)
+            intent_response.async_set_speech(result.text)
         return conversation.ConversationResult(
-            response=response,
+            response=intent_response,
             conversation_id=user_input.conversation_id,
         )
