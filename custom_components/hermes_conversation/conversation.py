@@ -6,6 +6,7 @@ import secrets
 from typing import Literal, override
 
 from homeassistant.components import conversation
+from homeassistant.components.conversation import ConversationEntityFeature
 from homeassistant.const import MATCH_ALL
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import intent
@@ -46,6 +47,14 @@ class HermesConversationEntity(conversation.ConversationEntity):
         """Bind the entity to one immutable entry runtime."""
         self._entry = entry
         self._attr_unique_id = entry.entry_id
+
+    @property
+    @override
+    def supported_features(self) -> ConversationEntityFeature:
+        """Advertise control only for the full Hermes runtime."""
+        if self._entry.runtime_data.full_agent:
+            return ConversationEntityFeature.CONTROL
+        return ConversationEntityFeature(0)
 
     @property
     @override
