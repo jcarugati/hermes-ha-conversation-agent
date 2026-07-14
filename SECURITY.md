@@ -14,6 +14,7 @@ The Hermes instance governs its own tools and MCP servers. A voice utterance is 
 - Redirects are disabled. The client uses an isolated cookie jar, so Home Assistant cookies never cross the boundary.
 - The only request body is `{model, input, conversation, stream: false}`. It contains no HA context, user/device identifiers, ChatLog history, credentials, tools, actions, instructions, or prompt overrides.
 - A configured model alias replaces only the value of `model`; it is not an additional DTO field and cannot select another endpoint.
+- Tool records may precede final assistant output, but a completed tool-only response fails closed as a protocol error and is never spoken as success.
 - Every dispatch revalidates direct capabilities. A dispatched request is never retried automatically; timeout or disconnect is indeterminate.
 
 ## Rollout

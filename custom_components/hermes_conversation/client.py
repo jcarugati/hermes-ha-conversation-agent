@@ -428,6 +428,8 @@ class HermesClient:
                         "/v1/responses content items must be non-empty output_text"
                     )
                 parts.append(part["text"])
+        if not parts:
+            raise HermesProtocolError("/v1/responses requires non-empty assistant output_text")
         text = "\n".join(parts)
         if len(text) > self._max_output_chars:
             raise HermesProtocolError(

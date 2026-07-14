@@ -28,3 +28,5 @@ The alias is bounded to 512 characters, is stored as a non-secret config-entry o
 5. Only then route normal control traffic to the direct agent.
 
 Every turn sends only a bounded utterance, selected model value, and fresh opaque conversation key. HA ChatLog remains local and requests are not automatically retried after dispatch.
+
+Hermes tool records may precede the final assistant message in a valid response. If a completed response contains only tool records and no assistant text, the integration fails closed instead of speaking success.

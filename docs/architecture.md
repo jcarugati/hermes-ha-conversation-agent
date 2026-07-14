@@ -20,6 +20,8 @@ The server must identify as Hermes, require bearer authentication, advertise `re
 
 Hermes owns the tool/MCP policy and can use the same configured abilities as its other channels. The Conversation entity therefore advertises Home Assistant control support, but that UI capability is not an authorization boundary.
 
+The response parser ignores validated Hermes tool records only when final non-empty assistant `output_text` is also present. A completed tool-only response is a protocol error and cannot enter the Conversation entity's success path.
+
 ## Model data flow
 
 Setup retains the capabilities-advertised model as the entry's validated default and separately stores an optional model alias. On each turn, the client revalidates that the same default is still advertised. It then sends either the default model (blank alias) or the configured alias (nonblank alias) as the value of the existing `model` field and validates the response against that selected value.

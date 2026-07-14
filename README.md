@@ -10,6 +10,8 @@ The integration supports one architecture: an authenticated direct Hermes API se
 
 It uses authenticated `POST /v1/responses`; it never uses chat completions itself, forwards HA ChatLog/cookies/context, or exposes an HA tool callback.
 
+Responses may contain Hermes tool records before the final assistant message. A completed response containing only tool records is rejected and is never treated as speakable success.
+
 ## Capability validation
 
 Before configuration, setup, and every request, the component validates health and authenticated capabilities. The server must advertise bearer authentication, `responses_api: true`, `chat_completions: true`, the fixed Responses endpoint, and no custom `security` object. Other contracts fail closed before dispatch.

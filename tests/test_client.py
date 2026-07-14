@@ -444,6 +444,36 @@ async def test_rejects_invalid_response_schema_and_excessive_output() -> None:
             await client.async_respond(model="fixture-model", utterance="status", conversation="c")
 
 
+@pytest.mark.parametrize("tool_type", ["function_call", "function_call_output"])
+def test_rejects_completed_response_with_only_tool_records(tool_type: str) -> None:
+    payload = completed_response() | {"output": [{"type": tool_type}]}
+    client = HermesClient(FakeSession([]), "https://hermes.invalid", "secret")  # type: ignore[arg-type]
+
+    with pytest.raises(HermesProtocolError, match="assistant output"):
+        client._parse_response(payload, "fixture-model")
+
+
+async def test_accepts_tool_records_followed_by_final_assistant_output() -> None:
+    payload = completed_response() | {
+        "output": [
+            {"type": "function_call"},
+            {"type": "function_call_output"},
+            completed_response()["output"][0],  # type: ignore[index]
+        ]
+    }
+    client = HermesClient(
+        FakeSession([FakeResponse(capabilities()), FakeResponse(payload)]),  # type: ignore[arg-type]
+        "https://hermes.invalid",
+        "secret",
+    )
+
+    response = await client.async_respond(
+        model="fixture-model", utterance="status", conversation="c"
+    )
+
+    assert response.text == "safe status"
+
+
 async def test_bounds_request_fields_before_dispatch() -> None:
     session = FakeSession([])
     client = HermesClient(session, "https://hermes.invalid", "secret", max_utterance_chars=4)  # type: ignore[arg-type]
