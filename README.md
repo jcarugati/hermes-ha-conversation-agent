@@ -1,33 +1,44 @@
 # Hermes Home Assistant Conversation Agent
 
-A thin Home Assistant Conversation entity that sends final-response requests to a validated private Hermes endpoint and speaks the returned text through Assist.
+<img src="custom_components/hermes_conversation/assets/logo.png" alt="Hermes Conversation Agent project logo" width="160">
+
+A thin Home Assistant Conversation entity that sends final-response requests to the private API server of a running Hermes instance and speaks the returned text through Assist.
 
 ## What it supports
 
-- **Direct Hermes API server:** connects Assist to the same running Hermes instance used by other channels. This is the intended mode when that instance already controls Home Assistant. The direct server owns its own tool and MCP policy; the integration does not artificially restrict it.
-- **Legacy no-tools gateway:** remains supported as a private fallback while a direct deployment is verified.
+The integration supports one architecture: an authenticated direct Hermes API server. It connects Assist to the same Hermes instance used by other channels, so the Hermes instance owns its tool and MCP policy and may execute any capability configured there. The bridge itself never supplies tools or Home Assistant execution callbacks.
 
-Both modes use authenticated `POST /v1/responses`; the bridge never uses chat completions itself, forwards HA ChatLog/cookies/context, or exposes an HA tool callback.
+It uses authenticated `POST /v1/responses`; it never uses chat completions itself, forwards HA ChatLog/cookies/context, or exposes an HA tool callback.
+
+Responses may contain Hermes tool records before the final assistant message. A completed response containing only tool records is rejected and is never treated as speakable success.
 
 ## Capability validation
 
-Before configuration, setup, and every request, the component validates health and authenticated capabilities.
+Before configuration, setup, and every request, the component validates authenticated capabilities. The server must advertise bearer authentication, `responses_api: true`, `chat_completions: true`, the fixed Responses endpoint, and no custom `security` object. Other contracts fail closed before dispatch.
 
-A direct server must advertise bearer authentication, `responses_api: true`, `chat_completions: true`, the fixed Responses endpoint, and no custom `security` object. A legacy gateway must advertise the exact no-tools policy. The two contracts are mutually exclusive and any other endpoint fails closed.
+## Model selection
+
+By default, each request uses the model advertised by `/v1/capabilities`. The entry options include an optional **Model alias**: leave it blank to preserve that default, or enter a Hermes model/routing alias to send that value as `model` to the same server. The alias neither changes the endpoint nor adds a request field.
 
 ## Security and rollout
 
-Keep endpoints private (Tailnet/LAN/private reverse proxy) and use bearer auth; this privacy is an operator deployment requirement for HTTPS endpoints. Disable unnecessary browser CORS. HTTPS is preferred; private HTTP needs explicit acknowledgement. Requests use a cookie-free Home Assistant session and contain only `{model, input, conversation, stream: false}`. Dispatched requests revalidate capabilities (not health) and are never retried automatically.
+Keep the endpoint private (Tailnet/LAN/private reverse proxy) and use bearer auth. Disable unnecessary browser CORS. HTTPS is preferred; private HTTP needs explicit acknowledgement. Requests use a cookie-free Home Assistant session and contain only `{model, input, conversation, stream: false}`. Dispatched requests revalidate capabilities and are never retried automatically.
 
-For safe migration, keep the working Voice pipeline enabled, add a separate direct entry/pipeline, verify simple text conversation, then a read-only HA query, then an explicitly authorized harmless action. Only after those checks should the fallback be retired or control advertised in Assist.
+A voice utterance is not identity proof. Verify simple text conversation, a read-only Home Assistant request, and an explicitly authorized harmless action before treating the pipeline as ready for control.
+
+## Logo
+
+The repository-local project logo is packaged at `custom_components/hermes_conversation/assets/logo.png` and used in this documentation. It is not published through Home Assistant Brands, so Home Assistant or HACS may still show a generic icon.
 
 ## Development
 
 ```bash
 uv sync --all-groups
-uv run pytest
+uv run pytest -q
 uv run ruff check .
+uv run ruff format --check .
 uv run mypy
+git diff --check
 ```
 
-See [installation](docs/installation-and-usage.md), [architecture](docs/architecture.md), and [security policy](SECURITY.md).
+See [installation](docs/installation-and-usage.md), [architecture](docs/architecture.md), [contract verification](docs/hermes-responses-contract.md), and [security policy](SECURITY.md).

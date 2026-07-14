@@ -90,12 +90,7 @@ def capabilities() -> dict[str, object]:
         "object": "hermes.api_server.capabilities",
         "model": "fixture-model",
         "auth": {"type": "bearer", "required": True},
-        "features": {"responses_api": True},
-        "security": {
-            "tool_policy": "none",
-            "mcp_policy": "none",
-            "server_enforced": True,
-        },
+        "features": {"responses_api": True, "chat_completions": True},
         "endpoints": {"responses": {"method": "POST", "path": "/v1/responses"}},
     }
 
@@ -258,9 +253,9 @@ async def test_fixed_endpoints_auth_headers_and_allowlisted_body() -> None:
     assert health_result.version == "0.18.2"
     assert capabilities_result == HermesCapabilities(
         model="fixture-model",
-        tool_policy="none",
-        mcp_policy="none",
-        server_enforced=True,
+        tool_policy="full_agent",
+        mcp_policy="server_managed",
+        server_enforced=False,
     )
     assert response.text == "safe status"
     assert [call[:2] for call in session.calls] == [
@@ -331,10 +326,8 @@ async def test_rejects_invalid_content_and_capability_schema(
         await client.async_capabilities()
 
 
-async def test_accepts_a_full_hermes_api_server_without_custom_security_policy() -> None:
+async def test_accepts_a_direct_hermes_api_server() -> None:
     payload = capabilities()
-    payload.pop("security")
-    payload["features"] = {"responses_api": True, "chat_completions": True}
     client = HermesClient(
         FakeSession([FakeResponse(payload)]),  # type: ignore[arg-type]
         "https://hermes.invalid",
@@ -350,7 +343,7 @@ async def test_accepts_a_full_hermes_api_server_without_custom_security_policy()
 
 
 @pytest.mark.parametrize("chat_completions", [False, "true", 1, {}, []])
-async def test_rejects_a_legacy_gateway_with_a_malformed_chat_completions_feature(
+async def test_rejects_a_server_with_an_invalid_chat_completions_feature(
     chat_completions: object,
 ) -> None:
     payload = capabilities()
@@ -361,29 +354,29 @@ async def test_rejects_a_legacy_gateway_with_a_malformed_chat_completions_featur
         "secret",
     )
 
-    with pytest.raises(
-        HermesProtocolError, match="neither a full Hermes API server nor the exact no-tools gateway"
-    ):
+    with pytest.raises(HermesProtocolError, match="does not advertise chat_completions"):
         await client.async_capabilities()
 
 
-async def test_rejects_a_mixed_direct_and_legacy_capability_contract() -> None:
+async def test_rejects_a_direct_server_with_a_custom_security_policy() -> None:
     payload = capabilities()
-    payload["features"] = {"responses_api": True, "chat_completions": True}
+    payload["security"] = {
+        "tool_policy": "none",
+        "mcp_policy": "none",
+        "server_enforced": True,
+    }
     client = HermesClient(
         FakeSession([FakeResponse(payload)]),  # type: ignore[arg-type]
         "https://hermes.invalid",
         "secret",
     )
 
-    with pytest.raises(
-        HermesProtocolError, match="neither a full Hermes API server nor the exact no-tools gateway"
-    ):
+    with pytest.raises(HermesProtocolError, match="custom security policy"):
         await client.async_capabilities()
 
 
 @pytest.mark.parametrize("security", [{}, {"tool_policy": "none"}, {"server_enforced": False}])
-async def test_rejects_direct_server_with_a_custom_security_object(
+async def test_rejects_any_custom_security_object(
     security: dict[str, object],
 ) -> None:
     payload = capabilities()
@@ -395,58 +388,30 @@ async def test_rejects_direct_server_with_a_custom_security_object(
         "secret",
     )
 
-    with pytest.raises(
-        HermesProtocolError, match="full Hermes API server nor the exact no-tools gateway"
-    ):
+    with pytest.raises(HermesProtocolError, match="custom security policy"):
         await client.async_capabilities()
 
 
-@pytest.mark.parametrize(
-    "security",
-    [
-        None,
-        {},
-        {"tool_policy": "none", "mcp_policy": "none"},
-        {"tool_policy": "allowlist", "mcp_policy": "none", "server_enforced": True},
-        {"tool_policy": "none", "mcp_policy": "allowlist", "server_enforced": True},
-        {"tool_policy": "none", "mcp_policy": "none", "server_enforced": False},
-        {
-            "tool_policy": "none",
-            "mcp_policy": "none",
-            "server_enforced": True,
-            "extra": "not-exact",
-        },
-    ],
-)
-async def test_rejects_generic_responses_api_without_exact_home_security_policy(
-    security: object,
-) -> None:
+async def test_rejects_responses_server_without_chat_completions() -> None:
     payload = capabilities()
-    if security is None:
-        payload.pop("security")
-    else:
-        payload["security"] = security
+    payload["features"] = {"responses_api": True}
     client = HermesClient(
         FakeSession([FakeResponse(payload)]),  # type: ignore[arg-type]
         "https://hermes.invalid",
         "secret",
     )
 
-    with pytest.raises(
-        HermesProtocolError, match="full Hermes API server nor the exact no-tools gateway"
-    ):
+    with pytest.raises(HermesProtocolError, match="does not advertise chat_completions"):
         await client.async_capabilities()
 
 
-async def test_security_policy_failure_prevents_response_dispatch() -> None:
+async def test_non_direct_capability_contract_prevents_response_dispatch() -> None:
     payload = capabilities()
-    payload.pop("security")
+    payload["features"] = {"responses_api": True}
     session = FakeSession([FakeResponse(payload)])
     client = HermesClient(session, "https://hermes.invalid", "secret")  # type: ignore[arg-type]
 
-    with pytest.raises(
-        HermesProtocolError, match="full Hermes API server nor the exact no-tools gateway"
-    ):
+    with pytest.raises(HermesProtocolError, match="does not advertise chat_completions"):
         await client.async_respond(
             model="fixture-model", utterance="status", conversation="conversation"
         )
@@ -477,6 +442,36 @@ async def test_rejects_invalid_response_schema_and_excessive_output() -> None:
         )
         with pytest.raises(HermesIndeterminateError, match="outcome may be unknown"):
             await client.async_respond(model="fixture-model", utterance="status", conversation="c")
+
+
+@pytest.mark.parametrize("tool_type", ["function_call", "function_call_output"])
+def test_rejects_completed_response_with_only_tool_records(tool_type: str) -> None:
+    payload = completed_response() | {"output": [{"type": tool_type}]}
+    client = HermesClient(FakeSession([]), "https://hermes.invalid", "secret")  # type: ignore[arg-type]
+
+    with pytest.raises(HermesProtocolError, match="assistant output"):
+        client._parse_response(payload, "fixture-model")
+
+
+async def test_accepts_tool_records_followed_by_final_assistant_output() -> None:
+    payload = completed_response() | {
+        "output": [
+            {"type": "function_call"},
+            {"type": "function_call_output"},
+            completed_response()["output"][0],  # type: ignore[index]
+        ]
+    }
+    client = HermesClient(
+        FakeSession([FakeResponse(capabilities()), FakeResponse(payload)]),  # type: ignore[arg-type]
+        "https://hermes.invalid",
+        "secret",
+    )
+
+    response = await client.async_respond(
+        model="fixture-model", utterance="status", conversation="c"
+    )
+
+    assert response.text == "safe status"
 
 
 async def test_bounds_request_fields_before_dispatch() -> None:
@@ -533,6 +528,54 @@ async def test_capability_model_mismatch_prevents_post() -> None:
     with pytest.raises(HermesProtocolError, match="model"):
         await client.async_respond(model="different-model", utterance="status", conversation="c")
     assert [call[0] for call in session.calls] == ["GET"]
+
+
+async def test_model_alias_changes_only_the_wire_model() -> None:
+    """An alias overrides the wire model while retaining the strict DTO."""
+    caps = capabilities()
+    session = FakeSession(
+        [
+            FakeResponse(caps),
+            FakeResponse(completed_response() | {"model": "alias-model"}),
+        ]
+    )
+    client = HermesClient(session, "https://hermes.invalid", "secret")  # type: ignore[arg-type]
+
+    response = await client.async_respond(
+        model="fixture-model",
+        utterance="status",
+        conversation="c",
+        model_alias="alias-model",
+    )
+    assert response.text == "safe status"
+    request = json.loads(session.calls[1][2]["data"])
+    assert request == {
+        "model": "alias-model",
+        "input": "status",
+        "conversation": "c",
+        "stream": False,
+    }
+    assert set(request) == {"model", "input", "conversation", "stream"}
+
+
+async def test_model_alias_response_mismatch_is_rejected() -> None:
+    """When model_alias is set, the response must echo the alias model."""
+    caps = capabilities()
+    session = FakeSession(
+        [
+            FakeResponse(caps),
+            FakeResponse(completed_response() | {"model": "different-model"}),
+        ]
+    )
+    client = HermesClient(session, "https://hermes.invalid", "secret")  # type: ignore[arg-type]
+
+    with pytest.raises(HermesIndeterminateError, match="outcome may be unknown"):
+        await client.async_respond(
+            model="fixture-model",
+            utterance="status",
+            conversation="c",
+            model_alias="alias-model",
+        )
 
 
 @pytest.mark.parametrize(

@@ -13,6 +13,7 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from . import async_validate_connection
 from .client import (
+    MAX_MODEL_CHARS,
     HermesAuthenticationError,
     HermesClient,
     HermesClientError,
@@ -23,6 +24,7 @@ from .const import (
     CONF_ALLOW_INSECURE_HTTP,
     CONF_CONNECT_TIMEOUT,
     CONF_MAX_OUTPUT_CHARS,
+    CONF_MODEL_ALIAS,
     CONF_TOKEN,
     CONF_TOTAL_TIMEOUT,
     CONF_URL,
@@ -253,6 +255,10 @@ class HermesOptionsFlow(config_entries.OptionsFlowWithReload):
                     CONF_MAX_OUTPUT_CHARS,
                     default=options.get(CONF_MAX_OUTPUT_CHARS, DEFAULT_MAX_OUTPUT_CHARS),
                 ): vol.All(vol.Coerce(int), vol.Range(min=256, max=32768)),
+                vol.Optional(
+                    CONF_MODEL_ALIAS,
+                    default=options.get(CONF_MODEL_ALIAS, ""),
+                ): vol.All(str, vol.Length(max=MAX_MODEL_CHARS)),
             }
         )
         return self.async_show_form(step_id="init", data_schema=schema)

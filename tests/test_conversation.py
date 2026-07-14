@@ -28,15 +28,20 @@ from custom_components.hermes_conversation.client import (
     HermesIndeterminateError,
     HermesResponse,
 )
-from custom_components.hermes_conversation.const import CONF_TOKEN, CONF_URL, DOMAIN
+from custom_components.hermes_conversation.const import (
+    CONF_MODEL_ALIAS,
+    CONF_TOKEN,
+    CONF_URL,
+    DOMAIN,
+)
 
 
 def _home_capabilities(model: str) -> HermesCapabilities:
     return HermesCapabilities(
         model=model,
-        tool_policy="none",
-        mcp_policy="none",
-        server_enforced=True,
+        tool_policy="full_agent",
+        mcp_policy="server_managed",
+        server_enforced=False,
     )
 
 
@@ -253,6 +258,47 @@ async def test_request_authentication_error_starts_reauth_without_retry(
     client.async_respond.assert_awaited_once()
 
 
+async def test_dispatcher_sends_model_alias_when_configured(
+    hass: HomeAssistant,
+) -> None:
+    """When model_alias is configured, the dispatcher sends it instead of the capabilities model."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Alias",
+        unique_id="https://hermes-alias.example.test",
+        data={CONF_URL: "https://hermes-alias.example.test", CONF_TOKEN: "entry-token"},
+        options={CONF_MODEL_ALIAS: "routed-model-alias"},
+    )
+    entry.add_to_hass(hass)
+    client = MagicMock(spec=HermesClient)
+    client.async_health = AsyncMock()
+    client.async_capabilities = AsyncMock(return_value=_home_capabilities("hermes-model"))
+    client.async_respond = AsyncMock(
+        return_value=HermesResponse(response_id="response-id", text="Alias response")
+    )
+
+    with patch("custom_components.hermes_conversation.create_client", return_value=client):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+        registry = er.async_get(hass)
+        entities = er.async_entries_for_config_entry(registry, entry.entry_id)
+        entity_id = entities[0].entity_id
+        try:
+            result = await _converse(hass, entity_id)
+        finally:
+            await hass.config_entries.async_unload(entry.entry_id)
+            await hass.async_block_till_done()
+
+    assert result.response.speech["plain"]["speech"] == "Alias response"
+    request = client.async_respond.await_args.kwargs
+    assert request == {
+        "model": "hermes-model",
+        "utterance": "estado de la casa",
+        "conversation": request["conversation"],
+        "model_alias": "routed-model-alias",
+    }
+
+
 async def test_setup_retry_registers_no_entity(hass: HomeAssistant) -> None:
     """An unavailable entry cannot appear as a selectable conversation entity."""
     entry = _entry("https://offline.example.test", "token", title="Offline")
@@ -268,18 +314,16 @@ async def test_setup_retry_registers_no_entity(hass: HomeAssistant) -> None:
     assert er.async_entries_for_config_entry(er.async_get(hass), entry.entry_id) == []
 
 
-async def test_generic_responses_api_policy_rejection_registers_no_bridge(
+async def test_non_direct_responses_api_rejection_registers_no_bridge(
     hass: HomeAssistant,
 ) -> None:
-    """A generic remote Hermes server cannot become a callable HA bridge."""
+    """A non-direct Responses server cannot become a callable HA bridge."""
     entry = _entry("https://generic-hermes.example.test", "token", title="Generic")
     entry.add_to_hass(hass)
     client = MagicMock(spec=HermesClient)
     client.async_health = AsyncMock()
     client.async_capabilities = AsyncMock(
-        side_effect=HermesClientError(
-            "/v1/capabilities does not advertise the exact no-tools security policy"
-        )
+        side_effect=HermesClientError("/v1/capabilities does not advertise chat_completions")
     )
 
     with patch("custom_components.hermes_conversation.create_client", return_value=client):
