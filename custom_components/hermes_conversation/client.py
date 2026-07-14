@@ -422,12 +422,14 @@ class HermesClient:
             raise HermesProtocolError("/v1/responses requires non-empty array field 'output'")
         parts: list[str] = []
         for item in output:
-            if (
-                not isinstance(item, dict)
-                or item.get("type") != "message"
-                or item.get("role") != "assistant"
-            ):
-                raise HermesProtocolError("/v1/responses output items must be assistant messages")
+            if not isinstance(item, dict):
+                raise HermesProtocolError("/v1/responses output items must be objects")
+            if item.get("type") in {"function_call", "function_call_output"}:
+                continue
+            if item.get("type") != "message" or item.get("role") != "assistant":
+                raise HermesProtocolError(
+                    "/v1/responses output items must be assistant messages or tool results"
+                )
             content = item.get("content")
             if not isinstance(content, list) or not content:
                 raise HermesProtocolError("/v1/responses message requires non-empty content")
