@@ -1,6 +1,6 @@
 # Hermes Conversation Agent para Home Assistant
 
-Hermes Conversation Agent conecta una canalización de Assist de Home Assistant con la API privada de una instancia Hermes que ya está en ejecución. Home Assistant conserva la palabra de activación, voz a texto, texto a voz, Assist y el registro de dispositivos; Hermes se ocupa del razonamiento y de las herramientas que tenga configuradas.
+Hermes Conversation Agent conecta una canalización de Assist de Home Assistant con la API de una instancia Hermes que ya está en ejecución y que el operador mantiene privada. Home Assistant conserva la palabra de activación, voz a texto, texto a voz, Assist y el registro de dispositivos; Hermes se ocupa del razonamiento y de las herramientas que tenga configuradas.
 
 **Inicio rápido:** sigue la [guía de instalación y uso](docs/installation-and-usage.md#inicio-rápido).
 
@@ -14,9 +14,9 @@ Hermes conserva su propia política de herramientas y MCP. Por tanto, elegir est
 
 ## Privacidad y seguridad
 
-- Mantén la API de Hermes privada, en la LAN, Tailnet o detrás de un proxy privado, y protégela con un token Bearer.
-- HTTPS se verifica de forma predeterminada. HTTP solo se permite explícitamente para hosts locales o privados y muestra una advertencia.
-- En cada turno se envían únicamente `model`, `input`, `conversation` y `stream: false`. La clave de conversación es opaca y nueva en cada turno; el historial de Assist se queda en Home Assistant.
+- Es un requisito operativo mantener la API de Hermes en una LAN, Tailnet o detrás de un proxy privado y protegerla con un token Bearer. La integración no comprueba que un host HTTPS sea privado.
+- HTTPS se verifica de forma predeterminada. Solo los hosts HTTP sin cifrar se limitan técnicamente a nombres locales o direcciones privadas, requieren habilitación explícita y muestran una advertencia.
+- En cada turno se envían únicamente `model`, `input`, `conversation` y `stream: false`. La clave de conversación es opaca y nueva en cada turno; no se reenvían el `ChatLog` ni contexto entre turnos de Assist. Hermes puede conservar esa conversación de un turno, la respuesta y los registros de herramientas según su propia política, y la integración no garantiza su eliminación remota.
 - Una frase de voz no autentica a la persona que la dijo. Prueba primero consultas de solo lectura y acciones inocuas autorizadas.
 
 Consulta los detalles operativos y de riesgo en [Configuración avanzada](docs/advanced-configuration.md) y en la [política de seguridad](SECURITY.md).
@@ -27,7 +27,9 @@ La integración dispone de configuración desde la interfaz de Home Assistant, r
 
 ## Logotipo
 
-El logotipo local se incluye con la integración en [`custom_components/hermes_conversation/assets/logo.png`](custom_components/hermes_conversation/assets/logo.png). No está publicado mediante Home Assistant Brands (`not published through Home Assistant Brands`), por lo que Home Assistant o HACS pueden mostrar un icono genérico.
+El logotipo local se incluye con la integración en [`custom_components/hermes_conversation/assets/logo.png`](custom_components/hermes_conversation/assets/logo.png). No se distribuye mediante el catálogo de Home Assistant Brands, por lo que Home Assistant o HACS pueden mostrar un icono genérico.
+
+La descripción equivalente en inglés es: **not published through Home Assistant Brands**.
 
 ## Documentación
 

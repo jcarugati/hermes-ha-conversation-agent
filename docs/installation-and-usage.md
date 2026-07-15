@@ -6,23 +6,24 @@ Esta guía configura Hermes Conversation Agent como el agente de conversación d
 
 Necesitas lo siguiente:
 
-- Una instalación de Home Assistant que admita integraciones personalizadas y acceso de administrador a su interfaz.
+- Una instalación de Home Assistant que admita integraciones personalizadas y acceso de administrador a su interfaz. Si vas a seguir el método de HACS, HACS debe estar instalado previamente.
 - Una instancia Hermes ya en ejecución, privada y accesible desde Home Assistant.
 - La URL raíz de la API Hermes, sin ruta, parámetros ni credenciales en la URL. Usa HTTPS siempre que sea posible.
-- Un token Bearer válido para esa API. Guárdalo como secreto y no lo pegues en capturas, registros ni archivos.
+- Un token Bearer válido para esa API. Introdúcelo solo en el flujo de configuración: Home Assistant lo guarda de forma segura en su entrada de configuración. No lo copies manualmente en documentación, capturas, registros, URLs ni archivos ordinarios.
 
-El servidor debe ser la API directa de la misma instancia Hermes que usas en otros canales. Durante la configuración, la integración comprueba `GET /health`, `GET /v1/capabilities` autenticado y el contrato de `POST /v1/responses`. Debe anunciar autenticación Bearer obligatoria, `responses_api: true`, `chat_completions: true` y el endpoint fijo de Responses, sin un contrato `security` personalizado.
+El servidor debe ser la API directa de la misma instancia Hermes que usas en otros canales. Durante la configuración y cada carga o recarga de la entrada, la integración comprueba `GET /health`, `GET /v1/capabilities` autenticado y el contrato de `POST /v1/responses`. Debe anunciar autenticación Bearer obligatoria, `responses_api: true`, `chat_completions: true` y el endpoint fijo de Responses, sin un contrato `security` personalizado. Antes de cada solicitud de Assist solo vuelve a comprobar las capacidades autenticadas y luego envía el `POST`; no repite `GET /health` en ese momento.
 
 ## Instalar la integración
 
 ### Con HACS como repositorio personalizado
 
-El proyecto incluye la metadata necesaria para HACS, pero no presupone que aparezca en una lista pública.
+Este método requiere que HACS ya esté instalado y añade el proyecto como repositorio personalizado; no depende de que la integración aparezca en el listado público de HACS.
 
-1. En HACS, abre **Integrations** y usa el menú para añadir un repositorio personalizado.
-2. Introduce la URL de clonación de este repositorio y selecciona el tipo **Integration**.
-3. Busca **Hermes Conversation Agent** dentro de ese repositorio personalizado e instálalo.
-4. Reinicia Home Assistant cuando HACS termine.
+1. En HACS, abre **Integrations**.
+2. Abre el menú de tres puntos y selecciona **Custom repositories**.
+3. Introduce `https://github.com/jcarugati/hermes-ha-conversation-agent` como URL del repositorio y selecciona el tipo **Integration**.
+4. Abre el repositorio personalizado de **Hermes Conversation Agent** e instala la integración.
+5. Reinicia Home Assistant cuando HACS termine.
 
 ### Instalación manual
 
@@ -36,18 +37,18 @@ El proyecto incluye la metadata necesaria para HACS, pero no presupone que apare
 2. Busca y selecciona **Hermes Conversation Agent**.
 3. Completa los dos campos mostrados por el flujo de configuración:
 
-   - **Hermes base URL**: la URL raíz privada de la API Hermes, por ejemplo con el esquema `https://`. No añadas `/v1/responses` ni un subdirectorio.
+   - **Hermes base URL**: la URL raíz de la API Hermes que mantienes privada, por ejemplo con el esquema `https://`. No añadas `/v1/responses` ni un subdirectorio.
    - **Bearer token**: el token de la API Hermes.
 
 4. Si usas `http://`, Home Assistant muestra una pantalla adicional. Marca exactamente **I understand that HTTP exposes the token and request data on the network** solo si el host es local o privado y aceptas el riesgo. HTTPS es la opción recomendada.
 5. Espera a que termine la validación. Si la URL, el token o el contrato del servidor no son válidos, la entrada no se guarda.
 
-La integración está diseñada solo para una URL privada. No expongas Hermes en Internet ni uses una pasarela alternativa; las redirecciones y las credenciales incluidas en la URL no se admiten.
+Mantener Hermes en una LAN, Tailnet o detrás de un proxy privado es un requisito para el operador. La validación limita hosts únicamente cuando la URL usa HTTP sin cifrar; una URL HTTPS puede superar la validación aunque apunte a un host público. No expongas Hermes en Internet ni uses una pasarela alternativa; las redirecciones y las credenciales incluidas en la URL no se admiten.
 
 ## Elegir Hermes en una canalización Assist
 
 1. Abre el editor de la canalización Assist que vas a usar en **Settings → Voice assistants**.
-2. En el campo de agente de conversación, selecciona **Hermes Conversation Agent**.
+2. En el campo de agente de conversación, selecciona la entrada asociada con tu URL de Hermes. Como la entidad no tiene un nombre de visualización fijo, el selector puede mostrar el hostname del endpoint en vez de **Hermes Conversation Agent**.
 3. Guarda la canalización y asígnala a la voz o al dispositivo con el que la probarás.
 
 La integración devuelve a Assist el texto final de Hermes. Home Assistant mantiene la entrada de voz, la salida de voz y los dispositivos; Hermes conserva las herramientas que tenga configuradas.
@@ -56,23 +57,24 @@ La integración devuelve a Assist el texto final de Hermes. Home Assistant manti
 
 Conserva la canalización de voz que ya funciona mientras verificas la nueva entrada.
 
-1. Desde Assist, envía una solicitud de texto sencilla que no controle ningún dispositivo, por ejemplo: «Responde con una frase breve para confirmar la conexión». Comprueba que Assist pronuncia la respuesta de Hermes.
-2. Haz una consulta de solo lectura que Hermes esté autorizado a resolver en tu instalación.
-3. Prueba una acción inocua que hayas autorizado explícitamente, preferiblemente sobre una entidad de prueba.
-4. Solo después de esas verificaciones, usa la canalización para el control habitual.
+1. En la interfaz de texto de Assist, envía una solicitud sencilla que no controle ningún dispositivo, por ejemplo: «Responde con una frase breve para confirmar la conexión». Comprueba que aparece la respuesta escrita de Hermes.
+2. Mediante el dispositivo o la canalización de voz, repite una solicitud inocua y comprueba por separado que STT entrega la frase y que TTS pronuncia la respuesta.
+3. Haz una consulta de solo lectura que Hermes esté autorizado a resolver en tu instalación.
+4. Prueba una acción inocua que hayas autorizado explícitamente, preferiblemente sobre una entidad de prueba.
+5. Solo después de esas verificaciones, usa la canalización para el control habitual.
 
 Una respuesta que contenga llamadas de herramientas y un texto final válido puede hablarse. Si Hermes termina sin texto final, la integración falla de forma segura en lugar de anunciar éxito.
 
 ## Cambiar opciones, actualizar el token o eliminar la entrada
 
-Abre la entrada **Hermes Conversation Agent** en **Settings → Devices & services** y elige **Configure** para cambiar sus opciones. Al guardar, Home Assistant recarga la entrada.
+En **Settings → Devices & services**, abre la entrada asociada con tu URL de Hermes y elige **Configure** para cambiar sus opciones. La entrada puede aparecer bajo el hostname del endpoint. Al guardar, Home Assistant la recarga.
 
 Los campos de opciones actuales son:
 
 - **Connect timeout (seconds)**: de 0,1 a 30; valor predeterminado 5.
 - **Total timeout (seconds)**: de 1 a 120; valor predeterminado 30.
 - **Maximum response characters**: de 256 a 32768; valor predeterminado 8192.
-- **Model alias (optional)**: hasta 512 caracteres. Déjalo vacío para usar el modelo predeterminado anunciado por Hermes. Consulta [Configuración avanzada](advanced-configuration.md#alias-de-modelo).
+- **Model alias (optional)**: hasta 512 caracteres. Déjalo vacío para usar el modelo anunciado por Hermes que quedó guardado al cargar o recargar la entrada. Consulta [Configuración avanzada](advanced-configuration.md#alias-de-modelo).
 
 Para una entrada HTTP, Home Assistant vuelve a pedir la confirmación de riesgo antes de abrir las opciones.
 
@@ -87,9 +89,10 @@ Para dejar de usar la integración, abre el menú de la entrada y elige **Delete
 | **Could not validate the Hermes endpoint, credentials, and Responses API capability** | Confirma que la URL es la raíz privada de la API, que Home Assistant puede alcanzarla y que el servidor anuncia el contrato directo requerido. Comprueba también el certificado HTTPS. |
 | **Hermes rejected the bearer token** | Sustituye el token mediante **Update authentication**. No añadas el token a la URL. |
 | La confirmación HTTP no permite continuar | HTTP solo se acepta para `localhost`, sufijos locales admitidos o direcciones privadas. Usa HTTPS si no necesitas HTTP local. |
-| Hermes no aparece como agente de conversación | Verifica que la entrada se haya creado sin errores, que Home Assistant se haya reiniciado tras la instalación y que hayas seleccionado **Hermes Conversation Agent** en la canalización Assist. |
+| Hermes no aparece como agente de conversación | Verifica que la entrada se haya creado sin errores y que Home Assistant se haya reiniciado tras la instalación. En el selector, busca la entrada asociada con tu URL de Hermes; puede aparecer con el hostname del endpoint porque la entidad no tiene un nombre de visualización fijo. |
 | Assist dice que Hermes no está disponible | Comprueba la conectividad privada, el estado de Hermes, la validez del token y el contrato de capacidades. |
 | No se pudo confirmar el resultado | Una solicitud ya enviada puede haber llegado a Hermes aunque se agotara el tiempo o se cortara la conexión. Revisa el estado real antes de repetir una acción. La integración no la reintenta automáticamente. |
-| El alias de modelo falla | Déjalo vacío para volver al predeterminado de Hermes o usa un alias existente en las rutas de modelos configuradas de esa misma API. |
+| Cambió el modelo predeterminado de Hermes | Recarga o reconfigura la entrada para que guarde el nuevo modelo anunciado por capacidades. Una entrada cargada conserva el modelo que se anunció al cargarla. |
+| El alias de modelo falla | La integración reenvía el alias sin comprobar previamente si existe en las rutas de modelos. Verifica que Hermes lo acepte y lo devuelva como `model`, o déjalo vacío para usar el modelo guardado al cargar la entrada. |
 
-No hay controles para recuperar, borrar o reutilizar un historial remoto: cada turno de Assist usa una conversación opaca nueva. Lee [Configuración avanzada](advanced-configuration.md#conversaciones-y-privacidad) antes de basar un flujo en contexto conversacional.
+No se reenvían el `ChatLog` ni contexto entre turnos: cada turno de Assist usa una conversación opaca nueva. La integración no ofrece controles para recuperar, borrar o reutilizar datos remotos, pero tampoco garantiza que Hermes los elimine; Hermes puede conservar la conversación de un turno, la respuesta y los registros de herramientas según su propia política. Lee [Configuración avanzada](advanced-configuration.md#conversaciones-y-privacidad) antes de basar un flujo en contexto conversacional.
