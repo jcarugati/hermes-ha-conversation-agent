@@ -1,44 +1,34 @@
-# Hermes Home Assistant Conversation Agent
+# Hermes Conversation Agent para Home Assistant
 
-<img src="custom_components/hermes_conversation/assets/logo.png" alt="Hermes Conversation Agent project logo" width="160">
+Hermes Conversation Agent conecta una canalización de Assist de Home Assistant con la API privada de una instancia Hermes que ya está en ejecución. Home Assistant conserva la palabra de activación, voz a texto, texto a voz, Assist y el registro de dispositivos; Hermes se ocupa del razonamiento y de las herramientas que tenga configuradas.
 
-A thin Home Assistant Conversation entity that sends final-response requests to the private API server of a running Hermes instance and speaks the returned text through Assist.
+**Inicio rápido:** sigue la [guía de instalación y uso](docs/installation-and-usage.md#inicio-rápido).
 
-## What it supports
+## Qué hace y qué no hace
 
-The integration supports one architecture: an authenticated direct Hermes API server. It connects Assist to the same Hermes instance used by other channels, so the Hermes instance owns its tool and MCP policy and may execute any capability configured there. The bridge itself never supplies tools or Home Assistant execution callbacks.
+La integración es un adaptador HTTP pequeño. Envía cada frase de Assist al endpoint directo autenticado de la misma instancia Hermes y devuelve el texto final para que Assist lo pronuncie.
 
-It uses authenticated `POST /v1/responses`; it never uses chat completions itself, forwards HA ChatLog/cookies/context, or exposes an HA tool callback.
+Solo funciona con el contrato directo de Hermes: `POST /v1/responses`, autenticación Bearer y respuestas no transmitidas (`stream: false`). No usa `/v1/chat/completions`, no instala una segunda plataforma de automatización y no reenvía herramientas, esquemas de Home Assistant, credenciales de HA ni el historial de ChatLog.
 
-Responses may contain Hermes tool records before the final assistant message. A completed response containing only tool records is rejected and is never treated as speakable success.
+Hermes conserva su propia política de herramientas y MCP. Por tanto, elegir esta integración no crea un perfil aislado ni una lista de permisos exclusiva de Home Assistant.
 
-## Capability validation
+## Privacidad y seguridad
 
-Before configuration, setup, and every request, the component validates authenticated capabilities. The server must advertise bearer authentication, `responses_api: true`, `chat_completions: true`, the fixed Responses endpoint, and no custom `security` object. Other contracts fail closed before dispatch.
+- Mantén la API de Hermes privada, en la LAN, Tailnet o detrás de un proxy privado, y protégela con un token Bearer.
+- HTTPS se verifica de forma predeterminada. HTTP solo se permite explícitamente para hosts locales o privados y muestra una advertencia.
+- En cada turno se envían únicamente `model`, `input`, `conversation` y `stream: false`. La clave de conversación es opaca y nueva en cada turno; el historial de Assist se queda en Home Assistant.
+- Una frase de voz no autentica a la persona que la dijo. Prueba primero consultas de solo lectura y acciones inocuas autorizadas.
 
-## Model selection
+Consulta los detalles operativos y de riesgo en [Configuración avanzada](docs/advanced-configuration.md) y en la [política de seguridad](SECURITY.md).
 
-By default, each request uses the model advertised by `/v1/capabilities`. The entry options include an optional **Model alias**: leave it blank to preserve that default, or enter a Hermes model/routing alias to send that value as `model` to the same server. The alias neither changes the endpoint nor adds a request field.
+## Estado actual
 
-## Security and rollout
+La integración dispone de configuración desde la interfaz de Home Assistant, renovación de token cuando Hermes rechaza la autenticación y opciones para límites de solicitud y alias de modelo. Admite una conexión directa por entrada de configuración; no ofrece controles de historial ni una pasarela alternativa.
 
-Keep the endpoint private (Tailnet/LAN/private reverse proxy) and use bearer auth. Disable unnecessary browser CORS. HTTPS is preferred; private HTTP needs explicit acknowledgement. Requests use a cookie-free Home Assistant session and contain only `{model, input, conversation, stream: false}`. Dispatched requests revalidate capabilities and are never retried automatically.
+## Documentación
 
-A voice utterance is not identity proof. Verify simple text conversation, a read-only Home Assistant request, and an explicitly authorized harmless action before treating the pipeline as ready for control.
-
-## Logo
-
-The repository-local project logo is packaged at `custom_components/hermes_conversation/assets/logo.png` and used in this documentation. It is not published through Home Assistant Brands, so Home Assistant or HACS may still show a generic icon.
-
-## Development
-
-```bash
-uv sync --all-groups
-uv run pytest -q
-uv run ruff check .
-uv run ruff format --check .
-uv run mypy
-git diff --check
-```
-
-See [installation](docs/installation-and-usage.md), [architecture](docs/architecture.md), [contract verification](docs/hermes-responses-contract.md), and [security policy](SECURITY.md).
+- [Instalación y uso](docs/installation-and-usage.md): guía para empezar, canalización Assist y solución de problemas.
+- [Configuración avanzada](docs/advanced-configuration.md): alias de modelo, privacidad, límites y riesgos.
+- [Arquitectura](docs/architecture.md): recorrido de datos y límites del adaptador.
+- [Contrato de la API Responses](docs/hermes-responses-contract.md): contrato técnico que debe anunciar el servidor Hermes.
+- [Política de seguridad](SECURITY.md): modelo de confianza y divulgación responsable.
