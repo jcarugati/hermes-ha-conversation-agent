@@ -25,6 +25,10 @@ Consulta los detalles operativos y de riesgo en [Configuración avanzada](docs/a
 
 La integración dispone de configuración desde la interfaz de Home Assistant, renovación de token cuando Hermes rechaza la autenticación y opciones para límites de solicitud y alias de modelo. Admite una conexión directa por entrada de configuración; no ofrece controles de historial ni una pasarela alternativa.
 
+## Logotipo
+
+El logotipo local se incluye con la integración en [`custom_components/hermes_conversation/assets/logo.png`](custom_components/hermes_conversation/assets/logo.png). No está publicado mediante Home Assistant Brands (`not published through Home Assistant Brands`), por lo que Home Assistant o HACS pueden mostrar un icono genérico.
+
 ## Documentación
 
 - [Instalación y uso](docs/installation-and-usage.md): guía para empezar, canalización Assist y solución de problemas.
