@@ -113,6 +113,23 @@ def completed_response(text: str = "safe status") -> dict[str, object]:
     }
 
 
+def exception_chain(error: BaseException) -> list[BaseException]:
+    """Return every exception reachable through explicit and implicit chaining."""
+    reachable: list[BaseException] = []
+    seen: set[int] = set()
+
+    def visit(current: BaseException | None) -> None:
+        if current is None or id(current) in seen:
+            return
+        seen.add(id(current))
+        reachable.append(current)
+        visit(current.__cause__)
+        visit(current.__context__)
+
+    visit(error)
+    return reachable
+
+
 @pytest.mark.parametrize(
     "url",
     [
@@ -493,16 +510,20 @@ async def test_response_api_exposes_no_tools_or_actions() -> None:
 async def test_timeout_is_indeterminate_and_never_retried() -> None:
     session = FakeSession([FakeResponse(capabilities()), TimeoutError()])
     client = HermesClient(session, "https://hermes.invalid", "secret")  # type: ignore[arg-type]
-    with pytest.raises(HermesIndeterminateError, match="outcome may be unknown"):
+    with pytest.raises(HermesIndeterminateError, match="outcome may be unknown") as raised:
         await client.async_respond(model="fixture-model", utterance="status", conversation="c")
+    assert isinstance(raised.value.__cause__, HermesClientError)
+    assert str(raised.value.__cause__) == "POST /v1/responses timed out after dispatch"
     assert [call[0] for call in session.calls] == ["GET", "POST"]
 
 
 async def test_post_disconnect_is_indeterminate_and_never_retried() -> None:
     session = FakeSession([FakeResponse(capabilities()), aiohttp.ServerDisconnectedError()])
     client = HermesClient(session, "https://hermes.invalid", "secret")  # type: ignore[arg-type]
-    with pytest.raises(HermesIndeterminateError, match="outcome may be unknown"):
+    with pytest.raises(HermesIndeterminateError, match="outcome may be unknown") as raised:
         await client.async_respond(model="fixture-model", utterance="status", conversation="c")
+    assert isinstance(raised.value.__cause__, HermesClientError)
+    assert str(raised.value.__cause__) == "POST /v1/responses connection failed after dispatch"
     assert [call[0] for call in session.calls] == ["GET", "POST"]
 
 
@@ -597,8 +618,9 @@ async def test_post_failures_are_indeterminate_after_exactly_one_dispatch(
         "secret",
         max_response_bytes=1_024,
     )
-    with pytest.raises(HermesIndeterminateError, match="outcome may be unknown"):
+    with pytest.raises(HermesIndeterminateError, match="outcome may be unknown") as raised:
         await client.async_respond(model="fixture-model", utterance="status", conversation="c")
+    assert isinstance(raised.value.__cause__, HermesProtocolError)
     assert [call[0] for call in session.calls] == ["GET", "POST"]
 
 
@@ -750,6 +772,8 @@ async def test_real_aiohttp_body_read_total_timeout_is_indeterminate(
     unused_tcp_port: int,
 ) -> None:
     posts = 0
+    marker = "post-dispatch-sensitive-value"
+    private_url = f"http://127.0.0.1:{unused_tcp_port}"
 
     async def capabilities_handler(request: web.Request) -> web.Response:
         return web.json_response(capabilities())
@@ -773,16 +797,25 @@ async def test_real_aiohttp_body_read_total_timeout_is_indeterminate(
         async with aiohttp.ClientSession() as session:
             client = HermesClient(
                 session,
-                f"http://127.0.0.1:{unused_tcp_port}",
-                "fixture-secret",
+                private_url,
+                marker,
                 allow_insecure_http=True,
                 connect_timeout=0.1,
                 total_timeout=0.05,
             )
-            with pytest.raises(HermesIndeterminateError, match="outcome may be unknown"):
+            with pytest.raises(HermesIndeterminateError, match="outcome may be unknown") as raised:
                 await client.async_respond(
                     model="fixture-model", utterance="status", conversation="c"
                 )
+            reachable = exception_chain(raised.value)
+            assert [type(error) for error in reachable] == [
+                HermesIndeterminateError,
+                HermesClientError,
+            ]
+            for error in reachable:
+                for representation in (str(error), repr(error)):
+                    assert marker not in representation
+                    assert private_url not in representation
             assert posts == 1
     finally:
         await runner.cleanup()

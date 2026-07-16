@@ -10,13 +10,14 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from numbers import Real
-from typing import Any, Final
+from typing import Any, Final, Never
 from urllib.parse import unquote, urlsplit, urlunsplit
 
 import aiohttp
 
 DEFAULT_CONNECT_TIMEOUT: Final = 5.0
 DEFAULT_TOTAL_TIMEOUT: Final = 30.0
+DEFAULT_NEW_ENTRY_TOTAL_TIMEOUT: Final = 90.0
 DEFAULT_MAX_REQUEST_BYTES: Final = 32_768
 DEFAULT_MAX_RESPONSE_BYTES: Final = 1_048_576
 DEFAULT_MAX_UTTERANCE_CHARS: Final = 8_192
@@ -58,6 +59,12 @@ class HermesIndeterminateError(HermesClientError):
 
 class _HermesPreDispatchError(HermesClientError):
     """A sanitized failure known to have happened before request dispatch."""
+
+
+def _raise_indeterminate_error(method: str, path: str, category: str) -> Never:
+    """Raise a sanitized post-dispatch failure outside the raw exception handler."""
+    cause = HermesClientError(f"{method} {path} {category} after dispatch")
+    raise HermesIndeterminateError(f"{cause}; outcome may be unknown") from cause
 
 
 @dataclass(frozen=True, slots=True)
@@ -264,6 +271,7 @@ class HermesClient:
         capabilities = await self.async_capabilities()
         if capabilities.model != model:
             raise HermesProtocolError("/v1/capabilities model does not match the request")
+        post_dispatch_error: HermesClientError | None = None
         try:
             payload = await self._request_json(
                 "POST", "/v1/responses", authenticated=True, body=encoded, indeterminate=True
@@ -275,10 +283,11 @@ class HermesClient:
             raise
         except _HermesPreDispatchError:
             raise
-        except HermesClientError:
-            raise HermesIndeterminateError(
-                "POST /v1/responses failed after dispatch; outcome may be unknown"
-            ) from None
+        except HermesClientError as err:
+            post_dispatch_error = err
+        raise HermesIndeterminateError(
+            "POST /v1/responses failed after dispatch; outcome may be unknown"
+        ) from post_dispatch_error
 
     @staticmethod
     def _validate_request_string(name: str, value: str, maximum: int) -> None:
@@ -314,6 +323,7 @@ class HermesClient:
         if body is not None:
             headers["Content-Type"] = "application/json"
         async with self._async_cookie_free_session() as request_session:
+            failure_category: str | None = None
             try:
                 request = request_session.request(
                     method,
@@ -333,8 +343,19 @@ class HermesClient:
                 ) from None
             except HermesClientError:
                 raise HermesClientError(f"{method} {path} request setup failed") from None
-            except (TimeoutError, aiohttp.ClientError):
-                raise HermesClientError(f"{method} {path} request setup failed") from None
+            except TimeoutError:
+                if indeterminate:
+                    failure_category = "timed out"
+                else:
+                    raise HermesClientError(f"{method} {path} request setup failed") from None
+            except aiohttp.ClientError:
+                if indeterminate:
+                    failure_category = "connection failed"
+                else:
+                    raise HermesClientError(f"{method} {path} request setup failed") from None
+            if failure_category is not None:
+                _raise_indeterminate_error(method, path, failure_category)
+            failure_category = None
             try:
                 async with request as response:
                     if authenticated and response.status in {401, 403}:
@@ -369,21 +390,25 @@ class HermesClient:
                 ) from None
             except TimeoutError:
                 if indeterminate:
-                    raise HermesIndeterminateError(
-                        f"{method} {path} timed out after dispatch; outcome may be unknown"
-                    ) from None
-                raise HermesClientError(f"{method} {path} timed out") from None
+                    failure_category = "timed out"
+                else:
+                    raise HermesClientError(f"{method} {path} timed out") from None
             except HermesClientError:
                 raise
             except aiohttp.ClientError:
                 if indeterminate:
-                    raise HermesIndeterminateError(
-                        f"{method} {path} connection failed after dispatch; outcome may be unknown"
-                    ) from None
-                raise HermesClientError(f"{method} {path} transport failure") from None
+                    failure_category = "connection failed"
+                else:
+                    raise HermesClientError(f"{method} {path} transport failure") from None
+            if failure_category is not None:
+                _raise_indeterminate_error(method, path, failure_category)
+        decode_failed = False
+        payload: Any = None
         try:
             payload = json.loads(raw)
         except (UnicodeDecodeError, json.JSONDecodeError):
+            decode_failed = True
+        if decode_failed:
             raise HermesProtocolError(f"{method} {path} returned malformed JSON") from None
         if not isinstance(payload, dict):
             raise HermesProtocolError(f"{method} {path} JSON root must be an object")

@@ -12,6 +12,8 @@ It uses authenticated `POST /v1/responses`; it never uses chat completions itsel
 
 Responses may contain Hermes tool records before the final assistant message. A completed response containing only tool records is rejected and is never treated as speakable success.
 
+New config entries use a 90-second total request timeout (adjustable from 1 to 120 seconds). Existing entries keep their saved timeout. To move an existing entry to 90 seconds, open **Settings → Devices & services → Hermes Conversation Agent → Configure**, set **Total timeout** to `90`, and submit the options form.
+
 ## Capability validation
 
 Before configuration, setup, and every request, the component validates authenticated capabilities. The server must advertise bearer authentication, `responses_api: true`, `chat_completions: true`, the fixed Responses endpoint, and no custom `security` object. Other contracts fail closed before dispatch.
@@ -22,7 +24,7 @@ By default, each request uses the model advertised by `/v1/capabilities`. The en
 
 ## Security and rollout
 
-Keep the endpoint private (Tailnet/LAN/private reverse proxy) and use bearer auth. Disable unnecessary browser CORS. HTTPS is preferred; private HTTP needs explicit acknowledgement. Requests use a cookie-free Home Assistant session and contain only `{model, input, conversation, stream: false}`. Dispatched requests revalidate capabilities and are never retried automatically.
+Keep the endpoint private (Tailnet/LAN/private reverse proxy) and use bearer auth. Disable unnecessary browser CORS. HTTPS is preferred; private HTTP needs explicit acknowledgement. Requests use a cookie-free Home Assistant session and contain only `{model, input, conversation, stream: false}`. Dispatched requests revalidate capabilities and are never retried automatically. A timeout, disconnect, malformed result, or tool-only completed result after dispatch is indeterminate; Assist receives a fixed confirmation-failure response rather than a claimed action success.
 
 A voice utterance is not identity proof. Verify simple text conversation, a read-only Home Assistant request, and an explicitly authorized harmless action before treating the pipeline as ready for control.
 

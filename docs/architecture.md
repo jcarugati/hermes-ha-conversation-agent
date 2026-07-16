@@ -22,6 +22,12 @@ Hermes owns the tool/MCP policy and can use the same configured abilities as its
 
 The response parser ignores validated Hermes tool records only when final non-empty assistant `output_text` is also present. A completed tool-only response is a protocol error and cannot enter the Conversation entity's success path.
 
+Once a POST has been dispatched, the bridge never retries it. A timeout, disconnect, malformed response, or response without final assistant text becomes an indeterminate result; the retained internal cause is sanitized while the Conversation entity returns only its fixed confirmation-failure message.
+
+## Request timeout data flow
+
+When a new entry is created, it saves a 90-second total timeout option. The options UI accepts 1 to 120 seconds. Existing stored options are not migrated or overwritten; an operator who wants the new value opens **Settings → Devices & services → Hermes Conversation Agent → Configure**, sets **Total timeout** to `90`, and saves the options.
+
 ## Model data flow
 
 Setup retains the capabilities-advertised model as the entry's validated default and separately stores an optional model alias. On each turn, the client revalidates that the same default is still advertised. It then sends either the default model (blank alias) or the configured alias (nonblank alias) as the value of the existing `model` field and validates the response against that selected value.

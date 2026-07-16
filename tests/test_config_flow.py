@@ -56,7 +56,7 @@ async def test_user_https_creates_entry_with_normalized_url(hass: HomeAssistant)
         CONF_TOKEN: "secret",
         CONF_ALLOW_INSECURE_HTTP: False,
     }
-    assert result["options"] == {}
+    assert result["options"] == {CONF_TOTAL_TIMEOUT: 90.0}
     assert result["result"].unique_id == "https://hermes.home.arpa"
     validate.assert_awaited_once()
 
@@ -392,6 +392,24 @@ async def test_options_are_non_secret_and_reload_entry(hass: HomeAssistant) -> N
         CONF_MODEL_ALIAS: "",
     }
     reload_entry.assert_called_once_with(entry.entry_id)
+
+
+async def test_options_keep_existing_saved_total_timeout(hass: HomeAssistant) -> None:
+    """Opening options does not replace a previously saved total timeout."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_URL: "https://hermes.example.test", CONF_TOKEN: "secret"},
+        options={CONF_TOTAL_TIMEOUT: 30.0},
+    )
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+
+    assert result["type"] == "form"
+    assert result["data_schema"] is not None
+    schema = result["data_schema"].schema
+    markers = {marker.schema: marker for marker in schema}
+    assert markers[CONF_TOTAL_TIMEOUT].default() == 30.0
 
 
 async def test_http_options_require_acknowledgement_before_changes(
