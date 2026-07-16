@@ -38,7 +38,7 @@ This method requires HACS to be installed already and adds the project as a cust
 3. Complete the two fields shown by the configuration flow:
 
    - **Hermes base URL**: the root URL of the Hermes API you keep private, for example using the `https://` scheme. Do not add `/v1/responses` or a subdirectory.
-   - **Bearer token**: the Hermes API token.
+   - **Bearer token**: enter the raw Hermes API token value only, without the `Bearer ` prefix. The integration creates the `Authorization: Bearer <token>` header.
 
 4. If you use `http://`, Home Assistant displays an additional screen. Select exactly **I understand that HTTP exposes the token and request data on the network** only when the host is local or private and you accept the risk. HTTPS is the recommended choice.
 5. Wait for validation to finish. If the URL, token, or server contract is invalid, the entry is not saved.
@@ -78,7 +78,7 @@ The current option fields are:
 
 For an HTTP entry, Home Assistant asks for the risk acknowledgement again before opening options.
 
-If Hermes rejects the token during a request, Home Assistant starts the **Update authentication** flow. Enter the new value in **Bearer token** and complete the HTTP acknowledgement again if applicable. This process does not change the URL.
+If Hermes rejects the token during a request, Home Assistant starts the **Update authentication** flow. In **Bearer token**, enter the new raw API token value only, without the `Bearer ` prefix; the integration creates the `Authorization: Bearer <token>` header. Complete the HTTP acknowledgement again if applicable. This process does not change the URL.
 
 To stop using the integration, open the entry menu and choose **Delete**. This removes Home Assistant's local configuration; it does not stop Hermes or modify its models, tools, or data.
 
