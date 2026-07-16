@@ -33,7 +33,7 @@ The contract test sends exactly:
 
 Only these four fields are sent by the verifier and allowed by the integration DTO. It does not send history, response IDs, instructions, prompt overrides, tools, MCP definitions, actions, Home Assistant ChatLog, HA identifiers, contexts, credentials, cookies, or copied headers.
 
-The standalone verifier always tests the capabilities-advertised default model. The Home Assistant integration may instead place a configured alias in the same `model` field; this does not change the DTO or endpoint.
+The standalone verifier always tests the capabilities-advertised default model. The Home Assistant integration stores that default at setup or reload and, when configured, may instead place an alias in the same `model` field. The integration does not pre-validate an alias against model routes; Hermes must accept and echo it. This does not change the DTO, endpoint, tools, or agent profile.
 
 ## Automated verification
 

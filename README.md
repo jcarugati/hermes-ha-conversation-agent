@@ -1,44 +1,40 @@
-# Hermes Home Assistant Conversation Agent
+# Hermes Conversation Agent for Home Assistant
 
 <img src="custom_components/hermes_conversation/assets/logo.png" alt="Hermes Conversation Agent project logo" width="160">
 
-A thin Home Assistant Conversation entity that sends final-response requests to the private API server of a running Hermes instance and speaks the returned text through Assist.
+Hermes Conversation Agent connects a Home Assistant Assist pipeline to the API of an already-running Hermes instance that the operator keeps private. Home Assistant retains wake word, speech-to-text, text-to-speech, Assist, and the device registry; Hermes handles reasoning and its configured tools.
 
-## What it supports
+**Quick start:** follow the [installation and usage guide](docs/installation-and-usage.md#quick-start).
 
-The integration supports one architecture: an authenticated direct Hermes API server. It connects Assist to the same Hermes instance used by other channels, so the Hermes instance owns its tool and MCP policy and may execute any capability configured there. The bridge itself never supplies tools or Home Assistant execution callbacks.
+## What it does—and does not do
 
-It uses authenticated `POST /v1/responses`; it never uses chat completions itself, forwards HA ChatLog/cookies/context, or exposes an HA tool callback.
+The integration is a thin HTTP adapter. It sends each Assist utterance to the authenticated direct endpoint of the same Hermes instance and returns the final text for Assist to speak.
 
-Responses may contain Hermes tool records before the final assistant message. A completed response containing only tool records is rejected and is never treated as speakable success.
+It works only with the direct Hermes contract: `POST /v1/responses`, bearer authentication, and non-streaming responses (`stream: false`). It does not use `/v1/chat/completions`, install a second automation platform, or forward tools, Home Assistant schemas, HA credentials, or ChatLog history.
 
-## Capability validation
+Hermes retains its own tool and MCP policy. Choosing this integration therefore does not create an isolated profile or a Home Assistant-only permission list.
 
-Before configuration, setup, and every request, the component validates authenticated capabilities. The server must advertise bearer authentication, `responses_api: true`, `chat_completions: true`, the fixed Responses endpoint, and no custom `security` object. Other contracts fail closed before dispatch.
+## Privacy and security
 
-## Model selection
+- Keeping the Hermes API on a LAN, Tailnet, or behind a private proxy and protecting it with a bearer token is an operator requirement. The integration does not verify that an HTTPS host is private.
+- HTTPS is verified by default. Only unencrypted HTTP hosts are technically limited to local names or private addresses; they require explicit opt-in and display a warning.
+- Each turn sends only `model`, `input`, `conversation`, and `stream: false`. The conversation key is opaque and new for every turn; no Assist `ChatLog` or cross-turn context is forwarded. Hermes may retain that one-turn conversation, the response, and tool records under its own policy, and the integration does not guarantee remote deletion.
+- A voice utterance does not authenticate the speaker. Start with read-only requests and harmless actions you have explicitly authorized.
 
-By default, each request uses the model advertised by `/v1/capabilities`. The entry options include an optional **Model alias**: leave it blank to preserve that default, or enter a Hermes model/routing alias to send that value as `model` to the same server. The alias neither changes the endpoint nor adds a request field.
+See [advanced configuration](docs/advanced-configuration.md) and the [security policy](SECURITY.md) for operational and risk details.
 
-## Security and rollout
+## Current status
 
-Keep the endpoint private (Tailnet/LAN/private reverse proxy) and use bearer auth. Disable unnecessary browser CORS. HTTPS is preferred; private HTTP needs explicit acknowledgement. Requests use a cookie-free Home Assistant session and contain only `{model, input, conversation, stream: false}`. Dispatched requests revalidate capabilities and are never retried automatically.
-
-A voice utterance is not identity proof. Verify simple text conversation, a read-only Home Assistant request, and an explicitly authorized harmless action before treating the pipeline as ready for control.
+The integration provides Home Assistant UI configuration, token rotation when Hermes rejects authentication, and options for request limits and model aliases. It supports one direct connection per config entry; it does not provide history controls or an alternative gateway.
 
 ## Logo
 
-The repository-local project logo is packaged at `custom_components/hermes_conversation/assets/logo.png` and used in this documentation. It is not published through Home Assistant Brands, so Home Assistant or HACS may still show a generic icon.
+The repository-local project logo is packaged at [`custom_components/hermes_conversation/assets/logo.png`](custom_components/hermes_conversation/assets/logo.png). It is **not published through Home Assistant Brands**, so Home Assistant or HACS may show a generic icon.
 
-## Development
+## Documentation
 
-```bash
-uv sync --all-groups
-uv run pytest -q
-uv run ruff check .
-uv run ruff format --check .
-uv run mypy
-git diff --check
-```
-
-See [installation](docs/installation-and-usage.md), [architecture](docs/architecture.md), [contract verification](docs/hermes-responses-contract.md), and [security policy](SECURITY.md).
+- [Installation and usage](docs/installation-and-usage.md): getting started, Assist-pipeline setup, and troubleshooting.
+- [Advanced configuration](docs/advanced-configuration.md): model aliases, privacy, limits, and risks.
+- [Architecture](docs/architecture.md): data flow and adapter boundaries.
+- [Responses API contract](docs/hermes-responses-contract.md): the technical contract the Hermes server must advertise.
+- [Security policy](SECURITY.md): trust model and responsible disclosure.
