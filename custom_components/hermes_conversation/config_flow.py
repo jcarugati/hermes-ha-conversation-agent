@@ -30,6 +30,7 @@ from .const import (
     CONF_URL,
     DEFAULT_CONNECT_TIMEOUT,
     DEFAULT_MAX_OUTPUT_CHARS,
+    DEFAULT_NEW_ENTRY_TOTAL_TIMEOUT,
     DEFAULT_TOTAL_TIMEOUT,
     DOMAIN,
 )
@@ -149,6 +150,7 @@ class HermesConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 self._pending[CONF_URL],
                 self._pending[CONF_TOKEN],
                 allow_insecure_http=self._pending[CONF_ALLOW_INSECURE_HTTP],
+                total_timeout=DEFAULT_NEW_ENTRY_TOTAL_TIMEOUT,
             )
             await async_validate_connection(self.hass, client)
         except HermesAuthenticationError:
@@ -164,7 +166,11 @@ class HermesConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 errors={"base": "cannot_connect"},
             )
         hostname = urlsplit(self._pending[CONF_URL]).hostname
-        return self.async_create_entry(title=hostname or "Hermes", data=self._pending)
+        return self.async_create_entry(
+            title=hostname or "Hermes",
+            data=self._pending,
+            options={CONF_TOTAL_TIMEOUT: DEFAULT_NEW_ENTRY_TOTAL_TIMEOUT},
+        )
 
     async def async_step_reauth(self, entry_data: dict[str, Any]) -> ConfigFlowResult:
         """Start token rotation for an existing fixed endpoint."""

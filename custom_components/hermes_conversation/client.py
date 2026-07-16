@@ -17,6 +17,7 @@ import aiohttp
 
 DEFAULT_CONNECT_TIMEOUT: Final = 5.0
 DEFAULT_TOTAL_TIMEOUT: Final = 30.0
+DEFAULT_NEW_ENTRY_TOTAL_TIMEOUT: Final = 90.0
 DEFAULT_MAX_REQUEST_BYTES: Final = 32_768
 DEFAULT_MAX_RESPONSE_BYTES: Final = 1_048_576
 DEFAULT_MAX_UTTERANCE_CHARS: Final = 8_192
@@ -275,10 +276,10 @@ class HermesClient:
             raise
         except _HermesPreDispatchError:
             raise
-        except HermesClientError:
+        except HermesClientError as err:
             raise HermesIndeterminateError(
                 "POST /v1/responses failed after dispatch; outcome may be unknown"
-            ) from None
+            ) from err
 
     @staticmethod
     def _validate_request_string(name: str, value: str, maximum: int) -> None:
@@ -333,7 +334,15 @@ class HermesClient:
                 ) from None
             except HermesClientError:
                 raise HermesClientError(f"{method} {path} request setup failed") from None
-            except (TimeoutError, aiohttp.ClientError):
+            except TimeoutError:
+                if indeterminate:
+                    cause = HermesClientError(f"{method} {path} timed out after dispatch")
+                    raise HermesIndeterminateError(f"{cause}; outcome may be unknown") from cause
+                raise HermesClientError(f"{method} {path} request setup failed") from None
+            except aiohttp.ClientError:
+                if indeterminate:
+                    cause = HermesClientError(f"{method} {path} connection failed after dispatch")
+                    raise HermesIndeterminateError(f"{cause}; outcome may be unknown") from cause
                 raise HermesClientError(f"{method} {path} request setup failed") from None
             try:
                 async with request as response:
@@ -369,17 +378,15 @@ class HermesClient:
                 ) from None
             except TimeoutError:
                 if indeterminate:
-                    raise HermesIndeterminateError(
-                        f"{method} {path} timed out after dispatch; outcome may be unknown"
-                    ) from None
+                    cause = HermesClientError(f"{method} {path} timed out after dispatch")
+                    raise HermesIndeterminateError(f"{cause}; outcome may be unknown") from cause
                 raise HermesClientError(f"{method} {path} timed out") from None
             except HermesClientError:
                 raise
             except aiohttp.ClientError:
                 if indeterminate:
-                    raise HermesIndeterminateError(
-                        f"{method} {path} connection failed after dispatch; outcome may be unknown"
-                    ) from None
+                    cause = HermesClientError(f"{method} {path} connection failed after dispatch")
+                    raise HermesIndeterminateError(f"{cause}; outcome may be unknown") from cause
                 raise HermesClientError(f"{method} {path} transport failure") from None
         try:
             payload = json.loads(raw)

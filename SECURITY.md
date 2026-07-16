@@ -15,7 +15,8 @@ The Hermes instance governs its own tools and MCP servers. A voice utterance is 
 - The only request body is `{model, input, conversation, stream: false}`. It contains no HA context, user/device identifiers, ChatLog history, credentials, tools, actions, instructions, or prompt overrides.
 - A configured model alias replaces only the value of `model`; it is not an additional DTO field and cannot select another endpoint.
 - Tool records may precede final assistant output, but a completed tool-only response fails closed as a protocol error and is never spoken as success.
-- Every dispatch revalidates direct capabilities. A dispatched request is never retried automatically; timeout or disconnect is indeterminate.
+- Every dispatch revalidates direct capabilities. A dispatched request is never retried automatically; timeout, disconnect, malformed output, or tool-only output after dispatch is indeterminate. The retained causal diagnostic is sanitized, and the spoken response never claims success without final assistant text.
+- New entries save a 90-second total timeout, within the 1–120 second supported range. Existing saved options are left unchanged; to adopt 90 seconds, open **Settings → Devices & services → Hermes Conversation Agent → Configure**, set **Total timeout** to `90`, and save.
 
 ## Rollout
 

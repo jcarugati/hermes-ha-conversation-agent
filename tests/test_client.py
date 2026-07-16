@@ -493,16 +493,20 @@ async def test_response_api_exposes_no_tools_or_actions() -> None:
 async def test_timeout_is_indeterminate_and_never_retried() -> None:
     session = FakeSession([FakeResponse(capabilities()), TimeoutError()])
     client = HermesClient(session, "https://hermes.invalid", "secret")  # type: ignore[arg-type]
-    with pytest.raises(HermesIndeterminateError, match="outcome may be unknown"):
+    with pytest.raises(HermesIndeterminateError, match="outcome may be unknown") as raised:
         await client.async_respond(model="fixture-model", utterance="status", conversation="c")
+    assert isinstance(raised.value.__cause__, HermesClientError)
+    assert str(raised.value.__cause__) == "POST /v1/responses timed out after dispatch"
     assert [call[0] for call in session.calls] == ["GET", "POST"]
 
 
 async def test_post_disconnect_is_indeterminate_and_never_retried() -> None:
     session = FakeSession([FakeResponse(capabilities()), aiohttp.ServerDisconnectedError()])
     client = HermesClient(session, "https://hermes.invalid", "secret")  # type: ignore[arg-type]
-    with pytest.raises(HermesIndeterminateError, match="outcome may be unknown"):
+    with pytest.raises(HermesIndeterminateError, match="outcome may be unknown") as raised:
         await client.async_respond(model="fixture-model", utterance="status", conversation="c")
+    assert isinstance(raised.value.__cause__, HermesClientError)
+    assert str(raised.value.__cause__) == "POST /v1/responses connection failed after dispatch"
     assert [call[0] for call in session.calls] == ["GET", "POST"]
 
 
@@ -597,8 +601,9 @@ async def test_post_failures_are_indeterminate_after_exactly_one_dispatch(
         "secret",
         max_response_bytes=1_024,
     )
-    with pytest.raises(HermesIndeterminateError, match="outcome may be unknown"):
+    with pytest.raises(HermesIndeterminateError, match="outcome may be unknown") as raised:
         await client.async_respond(model="fixture-model", utterance="status", conversation="c")
+    assert isinstance(raised.value.__cause__, HermesProtocolError)
     assert [call[0] for call in session.calls] == ["GET", "POST"]
 
 

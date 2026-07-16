@@ -1,7 +1,9 @@
 """End-to-end Home Assistant dispatcher tests for the Hermes entity bridge."""
 
+import json
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -52,6 +54,100 @@ def _entry(endpoint: str, token: str, *, title: str) -> MockConfigEntry:
         unique_id=endpoint,
         data={CONF_URL: endpoint, CONF_TOKEN: token},
     )
+
+
+class _FakeContent:
+    """Yield one complete response body through the client's streaming seam."""
+
+    def __init__(self, payload: object) -> None:
+        self._body = json.dumps(payload).encode()
+
+    async def iter_chunked(self, size: int) -> AsyncIterator[bytes]:
+        del size
+        yield self._body
+
+
+class _FakeResponse:
+    """Minimal async response accepted by the real Hermes client."""
+
+    status = 200
+    headers = {"Content-Type": "application/json"}
+
+    def __init__(self, payload: object) -> None:
+        self.content = _FakeContent(payload)
+
+    async def __aenter__(self) -> _FakeResponse:
+        return self
+
+    async def __aexit__(self, *args: object) -> None:
+        del args
+
+
+class _FakeSession:
+    """Record real client requests while returning fixed Hermes payloads."""
+
+    def __init__(self, responses: list[object]) -> None:
+        self._responses = responses
+        self.calls: list[tuple[str, str, dict[str, Any]]] = []
+
+    def request(self, method: str, url: str, **kwargs: Any) -> _FakeResponse:
+        self.calls.append((method, url, kwargs))
+        return _FakeResponse(self._responses.pop(0))
+
+
+def _capabilities_payload() -> dict[str, object]:
+    return {
+        "object": "hermes.api_server.capabilities",
+        "model": "hermes-model",
+        "auth": {"type": "bearer", "required": True},
+        "features": {"responses_api": True, "chat_completions": True},
+        "endpoints": {"responses": {"method": "POST", "path": "/v1/responses"}},
+    }
+
+
+def _completed_payload(output: list[dict[str, object]]) -> dict[str, object]:
+    return {
+        "id": "response-id",
+        "object": "response",
+        "created_at": 1,
+        "status": "completed",
+        "model": "hermes-model",
+        "output": output,
+        "usage": {"input_tokens": 1, "output_tokens": 2, "total_tokens": 3},
+    }
+
+
+@asynccontextmanager
+async def _loaded_real_client_entity(
+    hass: HomeAssistant, output: list[dict[str, object]]
+) -> AsyncIterator[tuple[_FakeSession, str]]:
+    """Load the entity with the real parser/transport client and fixed responses."""
+    session = _FakeSession(
+        [
+            {"status": "ok", "platform": "hermes-agent", "version": "test"},
+            _capabilities_payload(),
+            _capabilities_payload(),
+            _completed_payload(output),
+        ]
+    )
+    client = HermesClient(
+        session,  # type: ignore[arg-type]
+        "https://hermes-one.example.test",
+        "entry-token",
+    )
+    entry = _entry("https://hermes-one.example.test", "entry-token", title="Hermes One")
+    entry.add_to_hass(hass)
+
+    with patch("custom_components.hermes_conversation.create_client", return_value=client):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+        entities = er.async_entries_for_config_entry(er.async_get(hass), entry.entry_id)
+        assert len(entities) == 1
+        try:
+            yield session, entities[0].entity_id
+        finally:
+            await hass.config_entries.async_unload(entry.entry_id)
+            await hass.async_block_till_done()
 
 
 @asynccontextmanager
@@ -136,6 +232,45 @@ async def test_dispatcher_sends_only_allowlisted_dto_and_returns_spoken_text(
         "context",
     ):
         assert forbidden not in serialized
+
+
+async def test_tool_trace_with_final_text_is_spoken_after_one_post(
+    hass: HomeAssistant,
+) -> None:
+    """A completed tool turn speaks only its final assistant output."""
+    output: list[dict[str, object]] = [
+        {"type": "function_call", "call_id": "call-1"},
+        {"type": "function_call_output", "call_id": "call-1", "output": "opaque"},
+        {
+            "type": "message",
+            "role": "assistant",
+            "content": [{"type": "output_text", "text": "La luz quedó encendida."}],
+        },
+    ]
+
+    async with _loaded_real_client_entity(hass, output) as (session, entity_id):
+        result = await _converse(hass, entity_id, text="Enciende la luz")
+
+    assert result.response.response_type is intent.IntentResponseType.ACTION_DONE
+    assert result.response.speech["plain"]["speech"] == "La luz quedó encendida."
+    assert [method for method, _url, _kwargs in session.calls].count("POST") == 1
+
+
+async def test_tool_only_response_is_error_and_is_not_retried(hass: HomeAssistant) -> None:
+    """Tool records never become invented action-success speech."""
+    output: list[dict[str, object]] = [
+        {"type": "function_call", "call_id": "call-1"},
+        {"type": "function_call_output", "call_id": "call-1", "output": "opaque"},
+    ]
+
+    async with _loaded_real_client_entity(hass, output) as (session, entity_id):
+        result = await _converse(hass, entity_id, text="Enciende la luz")
+
+    assert result.response.response_type is intent.IntentResponseType.ERROR
+    assert result.response.speech["plain"]["speech"] == (
+        "No se pudo confirmar el resultado. Revisa el estado antes de intentarlo de nuevo."
+    )
+    assert [method for method, _url, _kwargs in session.calls].count("POST") == 1
 
 
 async def test_dispatcher_completes_local_chat_log_without_forwarding_it(

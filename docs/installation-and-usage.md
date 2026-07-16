@@ -19,6 +19,10 @@ Open the config entry's options to set **Model alias**.
 
 The alias is bounded to 512 characters, is stored as a non-secret config-entry option, and does not change the endpoint. Both paths send the same four-field request DTO.
 
+## Request timeout
+
+New entries save a 90-second total timeout. The supported range remains 1 to 120 seconds, while connect timeout and the other limits remain separately configurable. Existing entries retain their saved value. To set an existing entry to 90 seconds, open **Settings → Devices & services → Hermes Conversation Agent → Configure**, enter `90` for **Total timeout**, and submit the form; Home Assistant reloads the entry.
+
 ## Verify safely
 
 1. Keep the existing Voice pipeline unchanged while adding the direct entry.
@@ -27,6 +31,6 @@ The alias is bounded to 512 characters, is stored as a non-secret config-entry o
 4. Test an explicitly authorized harmless action.
 5. Only then route normal control traffic to the direct agent.
 
-Every turn sends only a bounded utterance, selected model value, and fresh opaque conversation key. HA ChatLog remains local and requests are not automatically retried after dispatch.
+Every turn sends only a bounded utterance, selected model value, and fresh opaque conversation key. HA ChatLog remains local and requests are not automatically retried after dispatch. A timeout, disconnect, malformed response, or tool-only completed response after dispatch has an indeterminate result, so Assist reports that confirmation failed rather than claiming an action succeeded.
 
 Hermes tool records may precede the final assistant message in a valid response. If a completed response contains only tool records and no assistant text, the integration fails closed instead of speaking success.
