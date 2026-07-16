@@ -1,63 +1,64 @@
-# Configuración avanzada
+# Advanced configuration
 
-Esta integración se conecta únicamente a la API directa de una instancia Hermes ya en ejecución. La guía inicial está en [Instalación y uso](installation-and-usage.md); el recorrido interno se describe en [Arquitectura](architecture.md).
+This integration connects only to the direct API of an already-running Hermes instance. The introductory guide is [installation and usage](installation-and-usage.md); the internal flow is described in [architecture](architecture.md).
 
-## Alias de modelo
+## Model alias
 
-La opción **Model alias (optional)** no añade una selección de agente. Solo determina el valor de `model` que la integración envía a la misma API Hermes.
+The **Model alias (optional)** option does not add agent selection. It determines only the `model` value that the integration sends to the same Hermes API.
 
-- Durante la carga o recarga de la entrada, la integración guarda el modelo predeterminado anunciado por `/v1/capabilities`. Si el alias queda en blanco, cada solicitud usa ese modelo configurado y guardado.
-- Si Hermes cambia su modelo predeterminado, recarga o reconfigura la entrada para guardar el nuevo valor anunciado.
-- Si se completa, la integración reenvía el alias como el único valor de `model`; no comprueba previamente que exista en las rutas. Hermes debe aceptar el alias y devolverlo como `model` en la respuesta.
-- El alias no selecciona un perfil, agente o entorno aislado. Tampoco cambia el endpoint ni las herramientas, los servidores MCP o los permisos disponibles en Hermes.
+- During config-entry setup or reload, the integration stores the default model announced by `/v1/capabilities`. When the alias is blank, each request uses that stored default model.
+- If Hermes changes its default model, reload or reconfigure the entry to store the newly announced value.
+- When set, the integration forwards the alias as the sole `model` value; it does not pre-validate that it exists in model routes. Hermes must accept the alias and return it as `model` in the response.
+- The alias does not select an isolated profile, agent, or environment. It also does not change the endpoint, available tools, MCP servers, or permissions in Hermes.
 
-El campo admite como máximo 512 caracteres. Si no quieres usar un alias, déjalo vacío para conservar el modelo guardado durante la última carga o recarga de la entrada.
+The field accepts at most 512 characters. If you do not want an alias, leave it blank to retain the model stored during the most recent config-entry setup or reload.
 
-## Endpoint directo y contrato
+## Direct endpoint and contract
 
-La URL configurada es la raíz de la API, no una URL de chat ni de una pasarela. Durante la configuración y cada carga o recarga de la entrada, la integración realiza estas comprobaciones:
+The configured URL is the API root, not a chat or gateway URL. During configuration and every config-entry setup or reload, the integration performs these checks:
 
-1. `GET /health` debe identificar un Hermes saludable.
-2. `GET /v1/capabilities` autenticado debe anunciar `responses_api: true`, `chat_completions: true`, autenticación Bearer obligatoria y `POST /v1/responses`, sin un miembro `security` personalizado.
-Antes de cada solicitud de Assist, vuelve a ejecutar únicamente `GET /v1/capabilities` autenticado, verifica que el modelo predeterminado siga coincidiendo con el guardado y después envía `POST /v1/responses` autenticado, sin redirecciones y con `stream: false`. No ejecuta `GET /health` antes de cada despacho.
+1. `GET /health` must identify a healthy Hermes server.
+2. Authenticated `GET /v1/capabilities` must advertise `responses_api: true`, `chat_completions: true`, required bearer authentication, and `POST /v1/responses`, with no custom `security` member.
 
-El cuerpo contiene exactamente estos cuatro campos:
+Before every Assist request, it runs only authenticated `GET /v1/capabilities` again, verifies that the default model still matches the stored value, and then sends authenticated `POST /v1/responses`, with redirects disabled and `stream: false`. It does not run `GET /health` before every dispatch.
+
+The request body contains exactly these four fields:
 
 ```json
 {
-  "model": "<modelo predeterminado o alias>",
-  "input": "<frase de Assist>",
-  "conversation": "<clave opaca nueva>",
+  "model": "<stored default model or alias>",
+  "input": "<Assist utterance>",
+  "conversation": "<fresh opaque key>",
   "stream": false
 }
 ```
 
-No se usa `/v1/chat/completions`. Un servidor de compatibilidad, una pasarela restringida o un contrato de seguridad distinto no es compatible con esta integración.
+It does not use `/v1/chat/completions`. A compatibility server, restricted gateway, or different security contract is not supported by this integration.
 
-## Conversaciones y privacidad
+## Conversations and privacy
 
-Para cada turno de Assist, la integración genera una clave de conversación opaca y nueva. No lee ni envía el `ChatLog` entrante de Home Assistant, y no conserva ni reenvía contexto entre turnos. Por diseño, no hay controles para restablecer, escoger, recuperar o reutilizar datos remotos.
+For each Assist turn, the integration generates a new opaque conversation key. It does not read or send Home Assistant's inbound `ChatLog`, and it does not retain or forward context between turns. By design, there are no controls to reset, select, retrieve, or reuse remote data.
 
-La clave nueva evita que la integración encadene turnos, pero no impone una política de retención en Hermes. Hermes puede conservar la conversación nombrada de ese turno, la respuesta y los registros de herramientas según su propia política. La integración no garantiza la eliminación remota de esos datos.
+The new key prevents the integration from chaining turns, but it does not impose a retention policy on Hermes. Hermes may retain that turn's named conversation, response, and tool records under its own policy. The integration does not guarantee remote deletion of that data.
 
-Además de los cuatro campos del cuerpo, la solicitud autenticada lleva el token Bearer en su cabecera. No se envían cookies de Home Assistant, identificadores de usuario o dispositivo, contexto, credenciales de HA, tokens de servicio, herramientas, acciones, instrucciones ni sustituciones de prompt. Los registros y diagnósticos deben tratar el token y el texto de la conversación como información sensible.
+In addition to the four request-body fields, the authenticated request carries the bearer token in its header. It does not send Home Assistant cookies, user or device identifiers, context, HA credentials, service tokens, tools, actions, instructions, or prompt overrides. Treat the token and conversation text as sensitive in logs and diagnostics.
 
-Como requisito operativo, mantén el servidor en una LAN, Tailnet o detrás de un proxy privado y sin CORS de navegador innecesario. HTTPS verifica el certificado por defecto, pero la integración no valida que su host sea privado. Solo HTTP sin cifrar está limitado técnicamente a hosts locales o privados; debe habilitarse de forma explícita y expone el token y los datos de la solicitud a la red.
+As an operator requirement, keep the server on a LAN, Tailnet, or behind a private proxy, without unnecessary browser CORS. HTTPS verifies the certificate by default, but the integration does not validate that its host is private. Only unencrypted HTTP is technically limited to local or private hosts; it must be explicitly enabled and exposes the token and request data to the network.
 
-## Límites y tiempos de espera
+## Limits and timeouts
 
-Los límites están pensados para contener solicitudes y respuestas, no para aumentar permisos:
+The limits contain requests and responses; they do not add permissions:
 
-- La entrada de Assist acepta hasta 8192 caracteres; el cuerpo de la solicitud está limitado a 32768 bytes.
-- **Connect timeout (seconds)** permite de 0,1 a 30 segundos; el valor inicial es 5.
-- **Total timeout (seconds)** permite de 1 a 120 segundos; el valor inicial es 30.
-- **Maximum response characters** permite de 256 a 32768; el valor inicial es 8192. Las respuestas HTTP también tienen un límite de tamaño de 1 MiB.
-- Las respuestas deben ser JSON y contener texto final no vacío de Hermes; una respuesta que solo contenga registros de herramientas se rechaza.
+- Assist input accepts up to 8192 characters; the request body is limited to 32768 bytes.
+- **Connect timeout (seconds)** accepts 0.1 to 30 seconds; its default is 5.
+- **Total timeout (seconds)** accepts 1 to 120 seconds; its default is 30.
+- **Maximum response characters** accepts 256 to 32768; its default is 8192. HTTP responses are also limited to 1 MiB.
+- Responses must be JSON and contain non-empty final Hermes text; a response containing only tool records is rejected.
 
-Una vez que el `POST` se ha enviado, un tiempo de espera o una desconexión tiene resultado indeterminado: Hermes podría haber ejecutado la solicitud. La integración no hace reintentos automáticos. Antes de repetir una acción, especialmente si cambia algo, comprueba su estado real.
+Once the `POST` has been sent, a timeout or disconnection is indeterminate: Hermes may have executed the request. The integration makes no automatic retry. Before repeating an action, especially one that changes something, check its real state.
 
-## Riesgo operativo
+## Operational risk
 
-Hermes conserva toda la superficie de herramientas y MCP que tenga configurada para esa instancia. La capacidad de control que ve Assist no es un límite de autorización adicional, y una voz no prueba la identidad de quien habla. Un prompt no sustituye los permisos de Hermes ni los controles de red.
+Hermes retains the full tool and MCP surface configured for that instance. The control capability that Assist sees is not an additional authorization limit, and a voice utterance does not prove the identity of the speaker. A prompt does not replace Hermes permissions or network controls.
 
-Mantén la ruta de voz que ya funciona mientras haces las primeras comprobaciones. Verifica primero una respuesta escrita en la interfaz de texto de Assist; después, verifica por separado la entrada de voz y la salida TTS. Continúa con una consulta de solo lectura y, por último, una acción inocua autorizada. Consulta también la [política de seguridad](../SECURITY.md).
+Keep the working voice path in place while you perform the initial checks. First verify a written response in Assist's text UI; then separately verify voice input and TTS output. Continue with a read-only request and finally an authorized harmless action. Also see the [security policy](../SECURITY.md).

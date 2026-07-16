@@ -1,40 +1,40 @@
-# Hermes Conversation Agent para Home Assistant
+# Hermes Conversation Agent for Home Assistant
 
-Hermes Conversation Agent conecta una canalización de Assist de Home Assistant con la API de una instancia Hermes que ya está en ejecución y que el operador mantiene privada. Home Assistant conserva la palabra de activación, voz a texto, texto a voz, Assist y el registro de dispositivos; Hermes se ocupa del razonamiento y de las herramientas que tenga configuradas.
+<img src="custom_components/hermes_conversation/assets/logo.png" alt="Hermes Conversation Agent project logo" width="160">
 
-**Inicio rápido:** sigue la [guía de instalación y uso](docs/installation-and-usage.md#inicio-rápido).
+Hermes Conversation Agent connects a Home Assistant Assist pipeline to the API of an already-running Hermes instance that the operator keeps private. Home Assistant retains wake word, speech-to-text, text-to-speech, Assist, and the device registry; Hermes handles reasoning and its configured tools.
 
-## Qué hace y qué no hace
+**Quick start:** follow the [installation and usage guide](docs/installation-and-usage.md#quick-start).
 
-La integración es un adaptador HTTP pequeño. Envía cada frase de Assist al endpoint directo autenticado de la misma instancia Hermes y devuelve el texto final para que Assist lo pronuncie.
+## What it does—and does not do
 
-Solo funciona con el contrato directo de Hermes: `POST /v1/responses`, autenticación Bearer y respuestas no transmitidas (`stream: false`). No usa `/v1/chat/completions`, no instala una segunda plataforma de automatización y no reenvía herramientas, esquemas de Home Assistant, credenciales de HA ni el historial de ChatLog.
+The integration is a thin HTTP adapter. It sends each Assist utterance to the authenticated direct endpoint of the same Hermes instance and returns the final text for Assist to speak.
 
-Hermes conserva su propia política de herramientas y MCP. Por tanto, elegir esta integración no crea un perfil aislado ni una lista de permisos exclusiva de Home Assistant.
+It works only with the direct Hermes contract: `POST /v1/responses`, bearer authentication, and non-streaming responses (`stream: false`). It does not use `/v1/chat/completions`, install a second automation platform, or forward tools, Home Assistant schemas, HA credentials, or ChatLog history.
 
-## Privacidad y seguridad
+Hermes retains its own tool and MCP policy. Choosing this integration therefore does not create an isolated profile or a Home Assistant-only permission list.
 
-- Es un requisito operativo mantener la API de Hermes en una LAN, Tailnet o detrás de un proxy privado y protegerla con un token Bearer. La integración no comprueba que un host HTTPS sea privado.
-- HTTPS se verifica de forma predeterminada. Solo los hosts HTTP sin cifrar se limitan técnicamente a nombres locales o direcciones privadas, requieren habilitación explícita y muestran una advertencia.
-- En cada turno se envían únicamente `model`, `input`, `conversation` y `stream: false`. La clave de conversación es opaca y nueva en cada turno; no se reenvían el `ChatLog` ni contexto entre turnos de Assist. Hermes puede conservar esa conversación de un turno, la respuesta y los registros de herramientas según su propia política, y la integración no garantiza su eliminación remota.
-- Una frase de voz no autentica a la persona que la dijo. Prueba primero consultas de solo lectura y acciones inocuas autorizadas.
+## Privacy and security
 
-Consulta los detalles operativos y de riesgo en [Configuración avanzada](docs/advanced-configuration.md) y en la [política de seguridad](SECURITY.md).
+- Keeping the Hermes API on a LAN, Tailnet, or behind a private proxy and protecting it with a bearer token is an operator requirement. The integration does not verify that an HTTPS host is private.
+- HTTPS is verified by default. Only unencrypted HTTP hosts are technically limited to local names or private addresses; they require explicit opt-in and display a warning.
+- Each turn sends only `model`, `input`, `conversation`, and `stream: false`. The conversation key is opaque and new for every turn; no Assist `ChatLog` or cross-turn context is forwarded. Hermes may retain that one-turn conversation, the response, and tool records under its own policy, and the integration does not guarantee remote deletion.
+- A voice utterance does not authenticate the speaker. Start with read-only requests and harmless actions you have explicitly authorized.
 
-## Estado actual
+See [advanced configuration](docs/advanced-configuration.md) and the [security policy](SECURITY.md) for operational and risk details.
 
-La integración dispone de configuración desde la interfaz de Home Assistant, renovación de token cuando Hermes rechaza la autenticación y opciones para límites de solicitud y alias de modelo. Admite una conexión directa por entrada de configuración; no ofrece controles de historial ni una pasarela alternativa.
+## Current status
 
-## Logotipo
+The integration provides Home Assistant UI configuration, token rotation when Hermes rejects authentication, and options for request limits and model aliases. It supports one direct connection per config entry; it does not provide history controls or an alternative gateway.
 
-El logotipo local se incluye con la integración en [`custom_components/hermes_conversation/assets/logo.png`](custom_components/hermes_conversation/assets/logo.png). No se distribuye mediante el catálogo de Home Assistant Brands, por lo que Home Assistant o HACS pueden mostrar un icono genérico.
+## Logo
 
-La descripción equivalente en inglés es: **not published through Home Assistant Brands**.
+The repository-local project logo is packaged at [`custom_components/hermes_conversation/assets/logo.png`](custom_components/hermes_conversation/assets/logo.png). It is **not published through Home Assistant Brands**, so Home Assistant or HACS may show a generic icon.
 
-## Documentación
+## Documentation
 
-- [Instalación y uso](docs/installation-and-usage.md): guía para empezar, canalización Assist y solución de problemas.
-- [Configuración avanzada](docs/advanced-configuration.md): alias de modelo, privacidad, límites y riesgos.
-- [Arquitectura](docs/architecture.md): recorrido de datos y límites del adaptador.
-- [Contrato de la API Responses](docs/hermes-responses-contract.md): contrato técnico que debe anunciar el servidor Hermes.
-- [Política de seguridad](SECURITY.md): modelo de confianza y divulgación responsable.
+- [Installation and usage](docs/installation-and-usage.md): getting started, Assist-pipeline setup, and troubleshooting.
+- [Advanced configuration](docs/advanced-configuration.md): model aliases, privacy, limits, and risks.
+- [Architecture](docs/architecture.md): data flow and adapter boundaries.
+- [Responses API contract](docs/hermes-responses-contract.md): the technical contract the Hermes server must advertise.
+- [Security policy](SECURITY.md): trust model and responsible disclosure.
