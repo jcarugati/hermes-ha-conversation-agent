@@ -19,6 +19,25 @@ Open the config entry's options to set **Model alias**.
 
 The alias is bounded to 512 characters, is stored as a non-secret config-entry option, and does not change the endpoint. Both paths send the same four-field request DTO.
 
+### Isolated Voice reasoning route
+
+Install a Hermes runtime version/change that supports per-route `reasoning_effort`, then add an API-server route using the same provider and model as the default profile:
+
+```yaml
+platforms:
+  api_server:
+    extra:
+      model_routes:
+        hermes-voice:
+          provider: "<same-provider-as-default>"
+          model: "<same-model-as-default>"
+          reasoning_effort: none
+```
+
+Replace both placeholders with the exact provider and model used by the default profile, restart Hermes as required, and set this integration's **Model alias** to `hermes-voice`. The integration then sends `hermes-voice` only as the existing `model` value.
+
+This override applies only to API requests that send the `hermes-voice` alias. Discord, Telegram, CLI, and API requests that use the default model or another alias retain the global `agent.reasoning_effort`. Do not assume this isolation is active before the matching Hermes runtime support is installed.
+
 ## Request timeout
 
 New entries save a 90-second total timeout. The supported range remains 1 to 120 seconds, while connect timeout and the other limits remain separately configurable. Existing entries retain their saved value. To set an existing entry to 90 seconds, open **Settings → Devices & services → Hermes Conversation Agent → Configure**, enter `90` for **Total timeout**, and submit the form; Home Assistant reloads the entry.

@@ -34,6 +34,21 @@ Setup retains the capabilities-advertised model as the entry's validated default
 
 The alias never appears as a separate HTTP field. The remaining DTO is the bounded utterance as `input`, an opaque entry-local Hermes named-conversation key as `conversation`, and `stream: false`.
 
+A Hermes runtime with per-route `reasoning_effort` support can map the integration-only alias to the same backend as the default profile while changing reasoning for that route:
+
+```yaml
+platforms:
+  api_server:
+    extra:
+      model_routes:
+        hermes-voice:
+          provider: "<same-provider-as-default>"
+          model: "<same-model-as-default>"
+          reasoning_effort: none
+```
+
+With **Model alias** set to `hermes-voice`, only requests carrying that alias select the route-local `reasoning_effort: none`. Discord, Telegram, CLI, and default API requests do not carry that alias and therefore retain the global `agent.reasoning_effort`. This boundary is implemented by Hermes routing, not by the Home Assistant bridge, and must not be claimed until the matching Hermes runtime version/change is installed.
+
 ## Conversation continuity data flow
 
 On a first turn without a Home Assistant `conversation_id`, the entity generates an opaque ID and returns it in `ConversationResult`. The entity keeps an entry-local mapping from each HA conversation ID to a separate opaque Hermes conversation key. Follow-up turns with the same HA ID reuse that Hermes key; distinct HA IDs receive distinct keys, so their Hermes contexts cannot mix. The mapping is a 256-item least-recently-used cache: touching an ID refreshes it, and an evicted ID receives a new Hermes key if it returns. The HA ID and inbound ChatLog never cross the HTTP boundary. Unloading or reloading the entry discards the in-memory mapping rather than sharing conversation state with another entity or config entry.
