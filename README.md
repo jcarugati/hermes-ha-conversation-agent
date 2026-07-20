@@ -10,6 +10,8 @@ The integration supports one architecture: an authenticated direct Hermes API se
 
 It uses authenticated `POST /v1/responses`; it never uses chat completions itself, forwards HA ChatLog/cookies/context, or exposes an HA tool callback.
 
+Conversation continuity follows Home Assistant's `conversation_id`. A first turn without one receives a new opaque ID in the result. The entry maps that ID to a separate opaque Hermes named-conversation key and reuses the key for follow-up turns; distinct HA IDs stay isolated and the HA ID itself is never sent to Hermes. The entry retains the 256 most recently used mappings, so an evicted inactive ID starts a new Hermes context if it returns rather than sharing another conversation's context.
+
 Responses may contain Hermes tool records before the final assistant message. A completed response containing only tool records is rejected and is never treated as speakable success.
 
 New config entries use a 90-second total request timeout (adjustable from 1 to 120 seconds). Existing entries keep their saved timeout. To move an existing entry to 90 seconds, open **Settings → Devices & services → Hermes Conversation Agent → Configure**, set **Total timeout** to `90`, and submit the options form.

@@ -32,4 +32,8 @@ When a new entry is created, it saves a 90-second total timeout option. The opti
 
 Setup retains the capabilities-advertised model as the entry's validated default and separately stores an optional model alias. On each turn, the client revalidates that the same default is still advertised. It then sends either the default model (blank alias) or the configured alias (nonblank alias) as the value of the existing `model` field and validates the response against that selected value.
 
-The alias never appears as a separate HTTP field. The remaining DTO is the bounded utterance as `input`, a fresh opaque per-turn `conversation`, and `stream: false`.
+The alias never appears as a separate HTTP field. The remaining DTO is the bounded utterance as `input`, an opaque entry-local Hermes named-conversation key as `conversation`, and `stream: false`.
+
+## Conversation continuity data flow
+
+On a first turn without a Home Assistant `conversation_id`, the entity generates an opaque ID and returns it in `ConversationResult`. The entity keeps an entry-local mapping from each HA conversation ID to a separate opaque Hermes conversation key. Follow-up turns with the same HA ID reuse that Hermes key; distinct HA IDs receive distinct keys, so their Hermes contexts cannot mix. The mapping is a 256-item least-recently-used cache: touching an ID refreshes it, and an evicted ID receives a new Hermes key if it returns. The HA ID and inbound ChatLog never cross the HTTP boundary. Unloading or reloading the entry discards the in-memory mapping rather than sharing conversation state with another entity or config entry.
