@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import secrets
-from typing import Literal, override
+from collections import OrderedDict
+from typing import Final, Literal, override
 
 from homeassistant.components import conversation
 from homeassistant.components.conversation import ConversationEntityFeature
@@ -24,6 +25,7 @@ _INDETERMINATE_ERROR = (
     "No se pudo confirmar el resultado. Revisa el estado antes de intentarlo de nuevo."
 )
 _INVALID_ERROR = "La solicitud no es válida."
+_MAX_TRACKED_CONVERSATIONS: Final = 256
 _UNAVAILABLE_ERROR = "Hermes no está disponible."
 
 
@@ -47,6 +49,35 @@ class HermesConversationEntity(conversation.ConversationEntity):
         """Bind the entity to one immutable entry runtime."""
         self._entry = entry
         self._attr_unique_id = entry.entry_id
+        self._hermes_conversations: OrderedDict[str, str] = OrderedDict()
+
+    def _conversation_ids(self, conversation_id: str | None) -> tuple[str, str]:
+        """Return the HA ID and its entry-local opaque Hermes conversation key."""
+        if conversation_id is None:
+            conversation_id = secrets.token_urlsafe(24)
+            while (
+                conversation_id in self._hermes_conversations
+                or conversation_id in self._hermes_conversations.values()
+            ):
+                conversation_id = secrets.token_urlsafe(24)
+
+        hermes_conversation = self._hermes_conversations.get(conversation_id)
+        if hermes_conversation is not None:
+            self._hermes_conversations.move_to_end(conversation_id)
+            return conversation_id, hermes_conversation
+
+        hermes_conversation = secrets.token_urlsafe(24)
+        while (
+            hermes_conversation == conversation_id
+            or hermes_conversation in self._hermes_conversations
+            or hermes_conversation in self._hermes_conversations.values()
+        ):
+            hermes_conversation = secrets.token_urlsafe(24)
+        self._hermes_conversations[conversation_id] = hermes_conversation
+        if len(self._hermes_conversations) > _MAX_TRACKED_CONVERSATIONS:
+            self._hermes_conversations.popitem(last=False)
+
+        return conversation_id, hermes_conversation
 
     @property
     @override
@@ -70,10 +101,11 @@ class HermesConversationEntity(conversation.ConversationEntity):
     ) -> conversation.ConversationResult:
         """Submit only allowlisted request fields and return final speech."""
         intent_response = intent.IntentResponse(language=user_input.language)
+        conversation_id, hermes_conversation = self._conversation_ids(user_input.conversation_id)
         request = {
             "model": self._entry.runtime_data.model,
             "utterance": user_input.text,
-            "conversation": secrets.token_urlsafe(24),
+            "conversation": hermes_conversation,
         }
         if self._entry.runtime_data.model_alias:
             request["model_alias"] = self._entry.runtime_data.model_alias
@@ -99,5 +131,5 @@ class HermesConversationEntity(conversation.ConversationEntity):
             intent_response.async_set_speech(result.text)
         return conversation.ConversationResult(
             response=intent_response,
-            conversation_id=user_input.conversation_id,
+            conversation_id=conversation_id,
         )

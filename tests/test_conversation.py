@@ -234,6 +234,87 @@ async def test_dispatcher_sends_only_allowlisted_dto_and_returns_spoken_text(
         assert forbidden not in serialized
 
 
+async def test_first_turn_creates_id_and_follow_up_reuses_hermes_conversation(
+    hass: HomeAssistant,
+) -> None:
+    """A generated HA conversation ID retains one opaque Hermes named conversation."""
+    async with _loaded_entity(hass) as (_entry_value, client, entity_id):
+        first = await _converse(hass, entity_id, text="primera", conversation_id=None)
+        second = await _converse(
+            hass,
+            entity_id,
+            text="aclaración",
+            conversation_id=first.conversation_id,
+        )
+
+    assert first.conversation_id
+    assert second.conversation_id == first.conversation_id
+    first_request, second_request = [call.kwargs for call in client.async_respond.await_args_list]
+    assert set(first_request) == {"model", "utterance", "conversation"}
+    assert set(second_request) == {"model", "utterance", "conversation"}
+    assert first_request["conversation"] == second_request["conversation"]
+    assert first_request["conversation"] != first.conversation_id
+    assert first_request["utterance"] == "primera"
+    assert second_request["utterance"] == "aclaración"
+
+
+async def test_first_turn_indeterminate_error_keeps_conversation_for_follow_up(
+    hass: HomeAssistant,
+) -> None:
+    """An indeterminate first turn still establishes reusable conversation continuity."""
+    async with _loaded_entity(hass) as (_entry_value, client, entity_id):
+        client.async_respond.side_effect = [
+            HermesIndeterminateError("unknown outcome"),
+            HermesResponse(response_id="follow-up", text="Respuesta posterior"),
+        ]
+        first = await _converse(hass, entity_id, text="primera", conversation_id=None)
+        second = await _converse(
+            hass,
+            entity_id,
+            text="aclaración",
+            conversation_id=first.conversation_id,
+        )
+
+    assert first.response.response_type is intent.IntentResponseType.ERROR
+    assert first.conversation_id
+    assert second.conversation_id == first.conversation_id
+    first_request, second_request = [call.kwargs for call in client.async_respond.await_args_list]
+    assert first_request["conversation"] == second_request["conversation"]
+
+
+async def test_distinct_ha_conversation_ids_are_isolated(hass: HomeAssistant) -> None:
+    """Separate HA IDs never share a Hermes named conversation."""
+    async with _loaded_entity(hass) as (_entry_value, client, entity_id):
+        first = await _converse(hass, entity_id, conversation_id="ha-conversation-one")
+        second = await _converse(hass, entity_id, conversation_id="ha-conversation-two")
+        follow_up = await _converse(hass, entity_id, conversation_id="ha-conversation-one")
+
+    assert first.conversation_id == follow_up.conversation_id == "ha-conversation-one"
+    assert second.conversation_id == "ha-conversation-two"
+    first_request, second_request, follow_up_request = [
+        call.kwargs for call in client.async_respond.await_args_list
+    ]
+    assert first_request["conversation"] == follow_up_request["conversation"]
+    assert first_request["conversation"] != second_request["conversation"]
+    assert first_request["conversation"] != "ha-conversation-one"
+    assert second_request["conversation"] != "ha-conversation-two"
+
+
+async def test_conversation_mapping_uses_bounded_lru_eviction(hass: HomeAssistant) -> None:
+    """The mapping retains recent continuity without growing without bound."""
+    with patch("custom_components.hermes_conversation.conversation._MAX_TRACKED_CONVERSATIONS", 2):
+        async with _loaded_entity(hass) as (_entry_value, client, entity_id):
+            await _converse(hass, entity_id, conversation_id="first")
+            await _converse(hass, entity_id, conversation_id="second")
+            await _converse(hass, entity_id, conversation_id="first")
+            await _converse(hass, entity_id, conversation_id="third")
+            await _converse(hass, entity_id, conversation_id="second")
+
+    conversations = [call.kwargs["conversation"] for call in client.async_respond.await_args_list]
+    assert conversations[0] == conversations[2]
+    assert conversations[1] != conversations[4]
+
+
 async def test_tool_trace_with_final_text_is_spoken_after_one_post(
     hass: HomeAssistant,
 ) -> None:
@@ -469,8 +550,8 @@ async def test_non_direct_responses_api_rejection_registers_no_bridge(
     assert er.async_entries_for_config_entry(er.async_get(hass), entry.entry_id) == []
 
 
-async def test_unload_and_reload_do_not_double_entity_instances(hass: HomeAssistant) -> None:
-    """Platform lifecycle removes the entity and reload creates only one replacement."""
+async def test_unload_and_reload_reset_conversation_mapping(hass: HomeAssistant) -> None:
+    """A reloaded entity starts fresh Hermes continuity for the same HA ID."""
     entry = _entry("https://reload.example.test", "token", title="Reload")
     entry.add_to_hass(hass)
     clients: list[MagicMock] = []
@@ -489,6 +570,7 @@ async def test_unload_and_reload_do_not_double_entity_instances(hass: HomeAssist
         registry = er.async_get(hass)
         entity_id = er.async_entries_for_config_entry(registry, entry.entry_id)[0].entity_id
         assert hass.states.get(entity_id) is not None
+        first = await _converse(hass, entity_id, conversation_id="ha-conversation")
 
         assert await hass.config_entries.async_unload(entry.entry_id)
         await hass.async_block_till_done()
@@ -498,7 +580,13 @@ async def test_unload_and_reload_do_not_double_entity_instances(hass: HomeAssist
 
         assert await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
+        second = await _converse(hass, entity_id, conversation_id="ha-conversation")
 
     assert len(clients) == 2
     assert len(er.async_entries_for_config_entry(registry, entry.entry_id)) == 1
     assert hass.states.get(entity_id) is not None
+    assert first.conversation_id == second.conversation_id == "ha-conversation"
+    assert (
+        clients[0].async_respond.await_args.kwargs["conversation"]
+        != clients[1].async_respond.await_args.kwargs["conversation"]
+    )

@@ -16,7 +16,7 @@ Never substitute a restricted profile, HA-only allowlist, or alternate gateway c
 
 - Target only authenticated `POST /v1/responses`, `stream: false`, and opaque named conversations. Never use `/v1/chat/completions` from the bridge.
 - Require authenticated `GET /v1/capabilities` before setup and each dispatch. Reject missing bearer auth, missing Responses endpoint, invalid `responses_api` or `chat_completions`, custom security contracts, and malformed capabilities.
-- Create a fresh opaque conversation key per HA turn. Do not read or transmit inbound HA `ChatLog` history.
+- Create and return an opaque HA `conversation_id` when the first turn has none. Map each HA conversation ID to one entry-local opaque Hermes conversation key, reuse that key for follow-up turns, and keep distinct IDs isolated. Bound the mapping to the 256 most recently used conversations; an evicted ID starts a new Hermes context if it returns. Never send the HA ID itself or read or transmit inbound HA `ChatLog` history.
 - Use only `{model, input, conversation, stream: false}`. A configured alias replaces only the `model` value. Never forward HA credentials, context objects, cookies, copied headers, device/user IDs, service tokens, tools, actions, instructions, or prompt overrides.
 - Treat every timeout after request dispatch as indeterminate. Never automatically retry a dispatched request.
 - TLS verification is on by default. Local/private HTTP requires explicit opt-in and an operator-visible warning.
@@ -38,7 +38,7 @@ Never substitute a restricted profile, HA-only allowlist, or alternate gateway c
 
 ## Tests required before release
 
-Cover exact default-model and alias request construction; DTO field exclusion; direct capability positive and negative cases; redirects; TLS and malformed URLs; oversized/non-JSON responses; timeouts; cancellation; entry isolation; config flow; reload/unload; duplicate entries; no automatic retry; and prompt/HA-context exclusion.
+Cover exact default-model and alias request construction; DTO field exclusion; direct capability positive and negative cases; redirects; TLS and malformed URLs; oversized/non-JSON responses; timeouts; cancellation; entry and conversation isolation; first-turn conversation ID creation and follow-up continuity; config flow; reload/unload; duplicate entries; no automatic retry; and prompt/HA-context exclusion.
 
 ## Documentation requirements
 
