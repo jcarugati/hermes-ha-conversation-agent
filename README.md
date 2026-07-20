@@ -24,6 +24,21 @@ Before configuration, setup, and every request, the component validates authenti
 
 By default, each request uses the model advertised by `/v1/capabilities`. The entry options include an optional **Model alias**: leave it blank to preserve that default, or enter a Hermes model/routing alias to send that value as `model` to the same server. The alias neither changes the endpoint nor adds a request field.
 
+To isolate Voice reasoning, first install a Hermes runtime version/change that supports per-route `reasoning_effort`, then configure an API-server route whose provider and model exactly match the default profile:
+
+```yaml
+platforms:
+  api_server:
+    extra:
+      model_routes:
+        hermes-voice:
+          provider: "<same-provider-as-default>"
+          model: "<same-model-as-default>"
+          reasoning_effort: none
+```
+
+Set this integration's **Model alias** to `hermes-voice`. Only API requests whose `model` value is `hermes-voice` receive `reasoning_effort: none`; Discord, Telegram, CLI, and default API requests continue to use the global `agent.reasoning_effort`. Do not rely on this isolation until the matching Hermes runtime support is installed.
+
 ## Security and rollout
 
 Keep the endpoint private (Tailnet/LAN/private reverse proxy) and use bearer auth. Disable unnecessary browser CORS. HTTPS is preferred; private HTTP needs explicit acknowledgement. Requests use a cookie-free Home Assistant session and contain only `{model, input, conversation, stream: false}`. Dispatched requests revalidate capabilities and are never retried automatically. A timeout, disconnect, malformed result, or tool-only completed result after dispatch is indeterminate; Assist receives a fixed confirmation-failure response rather than a claimed action success.
