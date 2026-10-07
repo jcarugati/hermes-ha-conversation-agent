@@ -405,7 +405,9 @@ async def test_tool_only_response_is_error_and_is_not_retried(hass: HomeAssistan
             "## Estado\n\nNo hay\nalarmas\n- No\nhay fugas\n3) Puerta",
             "Estado. No hay alarmas. No hay fugas. 3) Puerta",
         ),
-        ("👍", "👍"),
+        ("👍", ""),
+        ("https://example.test/a?token=x", ""),
+        ("- 🙂\n## ✅\n[](https://example.test/x)?", ""),
     ],
 )
 def test_speech_text_cleans_markup_but_keeps_meaning(text: str, speech: str) -> None:
@@ -438,6 +440,28 @@ async def test_speech_is_cleaned_while_chat_log_keeps_original_text(
     assert result.response.speech["plain"]["speech"] == "Listo. Luz: encendida"
     assert isinstance(stored.content[-1], AssistantContent)
     assert stored.content[-1].content == original
+
+
+@pytest.mark.parametrize(
+    "original", ["👍", "https://example.test/a?token=x", "¿🤔?"], ids=["emoji", "url", "question"]
+)
+async def test_unspeakable_reply_speaks_fixed_failure_and_keeps_original(
+    hass: HomeAssistant, original: str
+) -> None:
+    """A reply with nothing speakable never echoes raw text or claims success."""
+    async with _loaded_entity(hass) as (_entry_value, client, entity_id):
+        client.async_respond.return_value = HermesResponse(response_id="id", text=original)
+        result = await _converse(hass, entity_id, conversation_id="unspeakable")
+        stored = hass.data[chat_log_module.DATA_CHAT_LOGS]["unspeakable"]
+
+    assert result.response.response_type is intent.IntentResponseType.ERROR
+    assert result.response.speech["plain"]["speech"] == (
+        "La respuesta no se puede leer en voz alta. Revisa el estado antes de intentarlo de nuevo."
+    )
+    assert result.continue_conversation is False
+    assert isinstance(stored.content[-1], AssistantContent)
+    assert stored.content[-1].content == original
+    assert client.async_respond.await_count == 1
 
 
 async def test_dispatcher_completes_local_chat_log_without_forwarding_it(

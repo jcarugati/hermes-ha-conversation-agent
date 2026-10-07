@@ -28,6 +28,9 @@ _INDETERMINATE_ERROR = (
 _INVALID_ERROR = "La solicitud no es válida."
 _MAX_TRACKED_CONVERSATIONS: Final = 256
 _UNAVAILABLE_ERROR = "Hermes no está disponible."
+_UNSPEAKABLE_ERROR = (
+    "La respuesta no se puede leer en voz alta. Revisa el estado antes de intentarlo de nuevo."
+)
 _EMOJI: Final = re.compile(
     "[\u200d\u20e3\u2300-\u23ff\u2600-\u27bf\u2b00-\u2bff\ufe0f\U0001f000-\U0001faff]"
 )
@@ -44,7 +47,7 @@ _URL: Final = re.compile(r"<?https?://[^\s<>]*[^\s<>.,;:!?)]>?")
 
 
 def _speech_text(text: str) -> str:
-    """Return a TTS-friendly copy: no Markdown, link targets, URLs, or emoji."""
+    """Return a TTS-friendly copy, or "" when nothing speakable remains."""
     cleaned = _EMOJI.sub("", _URL.sub("", _LINK.sub(r"\1", text)))
     spoken, after_heading = "", False
     for line in cleaned.splitlines():
@@ -61,7 +64,7 @@ def _speech_text(text: str) -> str:
             spoken += ". " if new_sentence and spoken[-1] not in ".,;:!?…" else " "
         spoken += line
         after_heading = bool(marker and marker[1])
-    return spoken or text
+    return spoken if any(char.isalnum() for char in spoken) else ""
 
 
 async def async_setup_entry(
@@ -163,9 +166,15 @@ class HermesConversationEntity(conversation.ConversationEntity):
             chat_log.async_add_assistant_content_without_tools(
                 conversation.AssistantContent(agent_id=self.entity_id, content=result.text)
             )
-            intent_response.async_set_speech(_speech_text(result.text))
+            if speech := _speech_text(result.text):
+                intent_response.async_set_speech(speech)
+            else:
+                intent_response.async_set_error(
+                    intent.IntentResponseErrorCode.UNKNOWN, _UNSPEAKABLE_ERROR
+                )
         return conversation.ConversationResult(
             response=intent_response,
             conversation_id=conversation_id,
-            continue_conversation=chat_log.continue_conversation,
+            continue_conversation=chat_log.continue_conversation
+            and intent_response.response_type is not intent.IntentResponseType.ERROR,
         )
