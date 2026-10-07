@@ -22,6 +22,7 @@ DEFAULT_MAX_REQUEST_BYTES: Final = 32_768
 DEFAULT_MAX_RESPONSE_BYTES: Final = 1_048_576
 DEFAULT_MAX_UTTERANCE_CHARS: Final = 8_192
 DEFAULT_MAX_OUTPUT_CHARS: Final = 8_192
+PREFLIGHT_TIMEOUT: Final = 5.0
 MAX_MODEL_CHARS: Final = 512
 MAX_CONVERSATION_CHARS: Final = 512
 _HTTP_HOST_SUFFIXES: Final = (".local", ".home.arpa", ".ts.net")
@@ -203,6 +204,9 @@ class HermesClient:
         self._session = session
         self._token = token
         self._timeout = aiohttp.ClientTimeout(total=total_timeout, connect=connect_timeout)
+        self._preflight_timeout = aiohttp.ClientTimeout(
+            total=min(PREFLIGHT_TIMEOUT, total_timeout), connect=connect_timeout
+        )
         self._max_request_bytes = max_request_bytes
         self._max_response_bytes = max_response_bytes
         self._max_utterance_chars = max_utterance_chars
@@ -331,7 +335,7 @@ class HermesClient:
                     headers=headers,
                     data=body,
                     allow_redirects=False,
-                    timeout=self._timeout,
+                    timeout=self._timeout if indeterminate else self._preflight_timeout,
                 )
             except asyncio.CancelledError:
                 raise

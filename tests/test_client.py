@@ -298,6 +298,26 @@ async def test_fixed_endpoints_auth_headers_and_allowlisted_body() -> None:
     assert request["timeout"].total is not None
 
 
+async def test_preflight_uses_short_timeout_and_post_keeps_configured_timeout() -> None:
+    session = FakeSession(
+        [
+            FakeResponse(health()),
+            FakeResponse(capabilities()),
+            FakeResponse(completed_response()),
+        ]
+    )
+    client = HermesClient(session, "https://hermes.invalid", "secret", total_timeout=90)  # type: ignore[arg-type]
+
+    await client.async_health()
+    await client.async_respond(model="fixture-model", utterance="status", conversation="c")
+
+    assert [(call[0], call[2]["timeout"].total) for call in session.calls] == [
+        ("GET", 5.0),
+        ("GET", 5.0),
+        ("POST", 90.0),
+    ]
+
+
 @pytest.mark.parametrize("status", [301, 302, 307, 308])
 async def test_rejects_redirects_without_following(status: int) -> None:
     session = FakeSession([FakeResponse({}, status=status)])
