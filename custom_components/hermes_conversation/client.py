@@ -5,7 +5,9 @@ from __future__ import annotations
 import asyncio
 import ipaddress
 import json
+import logging
 import math
+import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
@@ -14,6 +16,8 @@ from typing import Any, Final, Never
 from urllib.parse import unquote, urlsplit, urlunsplit
 
 import aiohttp
+
+_LOGGER = logging.getLogger(__name__)
 
 DEFAULT_CONNECT_TIMEOUT: Final = 5.0
 DEFAULT_TOTAL_TIMEOUT: Final = 30.0
@@ -273,28 +277,47 @@ class HermesClient:
         encoded = json.dumps(body, ensure_ascii=False, separators=(",", ":")).encode()
         if len(encoded) > self._max_request_bytes:
             raise ValueError(f"request exceeds {self._max_request_bytes} bytes")
-        capabilities = await self.async_capabilities()
-        if model_alias is None and capabilities.model != model:
-            raise HermesProtocolError("/v1/capabilities model does not match the request")
-        post_dispatch_error: HermesClientError | None = None
+        started = time.monotonic()
+        preflight: float | None = None
+        outcome, output_chars = HermesResponse.__name__, 0
         try:
-            payload = await self._request_json(
-                "POST", "/v1/responses", authenticated=True, body=encoded, indeterminate=True
+            capabilities = await self.async_capabilities()
+            if model_alias is None and capabilities.model != model:
+                raise HermesProtocolError("/v1/capabilities model does not match the request")
+            preflight = time.monotonic() - started
+            post_dispatch_error: HermesClientError | None = None
+            try:
+                payload = await self._request_json(
+                    "POST", "/v1/responses", authenticated=True, body=encoded, indeterminate=True
+                )
+                response = self._parse_response(payload, request_model)
+                output_chars = len(response.text)
+                return response
+            except asyncio.CancelledError:
+                raise
+            except HermesAuthenticationError:
+                raise
+            except HermesIndeterminateError:
+                raise
+            except _HermesPreDispatchError:
+                raise
+            except HermesClientError as err:
+                post_dispatch_error = err
+            raise HermesIndeterminateError(
+                "POST /v1/responses failed after dispatch; outcome may be unknown"
+            ) from post_dispatch_error
+        except BaseException as err:
+            outcome = type(err).__name__
+            raise
+        finally:
+            elapsed = time.monotonic() - started
+            _LOGGER.debug(
+                "Hermes turn: preflight %.3f s, POST %.3f s, outcome %s, output %d chars",
+                elapsed if preflight is None else preflight,
+                0.0 if preflight is None else elapsed - preflight,
+                outcome,
+                output_chars,
             )
-            return self._parse_response(payload, request_model)
-        except asyncio.CancelledError:
-            raise
-        except HermesAuthenticationError:
-            raise
-        except HermesIndeterminateError:
-            raise
-        except _HermesPreDispatchError:
-            raise
-        except HermesClientError as err:
-            post_dispatch_error = err
-        raise HermesIndeterminateError(
-            "POST /v1/responses failed after dispatch; outcome may be unknown"
-        ) from post_dispatch_error
 
     @staticmethod
     def _validate_request_string(name: str, value: str, maximum: int) -> None:

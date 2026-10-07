@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import datetime
 import ipaddress
 import json
 import math
+import re
 import ssl
 from pathlib import Path
 from typing import Any, cast
@@ -316,6 +318,40 @@ async def test_preflight_uses_short_timeout_and_post_keeps_configured_timeout() 
         ("GET", 5.0),
         ("POST", 90.0),
     ]
+
+
+@pytest.mark.parametrize(
+    ("responses", "outcome", "output_chars"),
+    [
+        ([FakeResponse(capabilities()), FakeResponse(completed_response())], "HermesResponse", 11),
+        ([FakeResponse({}, status=401)], "HermesAuthenticationError", 0),
+        ([FakeResponse(capabilities()), TimeoutError()], "HermesIndeterminateError", 0),
+    ],
+)
+async def test_turn_debug_log_has_timings_and_outcome_without_private_data(
+    caplog: pytest.LogCaptureFixture,
+    responses: list[FakeResponse | BaseException],
+    outcome: str,
+    output_chars: int,
+) -> None:
+    client = HermesClient(FakeSession(responses), "https://hermes.invalid", "fixture-secret")  # type: ignore[arg-type]
+    caplog.set_level("DEBUG", logger="custom_components.hermes_conversation.client")
+
+    with contextlib.suppress(HermesClientError):
+        await client.async_respond(
+            model="fixture-model", utterance="private utterance", conversation="opaque-key"
+        )
+
+    [record] = caplog.records
+    message = record.getMessage()
+    assert record.levelname == "DEBUG"
+    assert re.fullmatch(
+        rf"Hermes turn: preflight \d+\.\d{{3}} s, POST \d+\.\d{{3}} s, "
+        rf"outcome {outcome}, output {output_chars} chars",
+        message,
+    )
+    for private in ("fixture-secret", "private utterance", "opaque-key", "hermes.invalid"):
+        assert private not in message
 
 
 @pytest.mark.parametrize("status", [301, 302, 307, 308])
