@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import secrets
 from collections import OrderedDict
 from typing import Final, Literal, override
@@ -27,6 +28,25 @@ _INDETERMINATE_ERROR = (
 _INVALID_ERROR = "La solicitud no es válida."
 _MAX_TRACKED_CONVERSATIONS: Final = 256
 _UNAVAILABLE_ERROR = "Hermes no está disponible."
+_EMOJI: Final = re.compile(
+    "[\u200d\u20e3\u2300-\u23ff\u2600-\u27bf\u2b00-\u2bff\ufe0f\U0001f000-\U0001faff]"
+)
+_LINE_MARKER: Final = re.compile(r"^\s*(?:#{1,6}|[-*+•])\s+")
+_LINK: Final = re.compile(r"!?\[([^\[\]]*)\]\([^()\s]*\)")
+_URL: Final = re.compile(r"<?https?://[^\s<>]*[^\s<>.,;:!?)]>?")
+
+
+def _speech_text(text: str) -> str:
+    """Return a TTS-friendly copy: no Markdown, link targets, URLs, or emoji."""
+    cleaned = _EMOJI.sub("", _URL.sub("", _LINK.sub(r"\1", text)))
+    spoken = ""
+    for line in cleaned.splitlines():
+        line = re.sub(r"[*`]|~~", "", _LINE_MARKER.sub("", line)).replace("_", " ")
+        line = re.sub(r"\s+(?=[.,;:!?])", "", " ".join(line.split()))
+        if line and spoken:
+            spoken += " " if spoken[-1] in ".,;:!?…" else ". "
+        spoken += line
+    return spoken or text
 
 
 async def async_setup_entry(
@@ -128,7 +148,7 @@ class HermesConversationEntity(conversation.ConversationEntity):
             chat_log.async_add_assistant_content_without_tools(
                 conversation.AssistantContent(agent_id=self.entity_id, content=result.text)
             )
-            intent_response.async_set_speech(result.text)
+            intent_response.async_set_speech(_speech_text(result.text))
         return conversation.ConversationResult(
             response=intent_response,
             conversation_id=conversation_id,

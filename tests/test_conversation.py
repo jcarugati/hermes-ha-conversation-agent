@@ -1,6 +1,7 @@
 """End-to-end Home Assistant dispatcher tests for the Hermes entity bridge."""
 
 import json
+import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any
@@ -36,6 +37,7 @@ from custom_components.hermes_conversation.const import (
     CONF_URL,
     DOMAIN,
 )
+from custom_components.hermes_conversation.conversation import _speech_text
 
 
 def _home_capabilities(model: str) -> HermesCapabilities:
@@ -372,6 +374,59 @@ async def test_tool_only_response_is_error_and_is_not_retried(hass: HomeAssistan
         "No se pudo confirmar el resultado. Revisa el estado antes de intentarlo de nuevo."
     )
     assert [method for method, _url, _kwargs in session.calls].count("POST") == 1
+
+
+@pytest.mark.parametrize(
+    ("text", "speech"),
+    [
+        (
+            "**Listo** ✅ la luz del living quedó *encendida*.",
+            "Listo la luz del living quedó encendida.",
+        ),
+        (
+            "# Estado\n- Luz cocina: encendida\n* Temperatura: -5 °C\n+ No hay alarmas",
+            "Estado. Luz cocina: encendida. Temperatura: -5 °C. No hay alarmas",
+        ),
+        (
+            "Mirá [la guía](https://example.test/a?token=x), o https://example.test/b. Fin",
+            "Mirá la guía, o. Fin",
+        ),
+        ("1. Prender\n2. No apagar 21,5 °C al 40 %", "1. Prender. 2. No apagar 21,5 °C al 40 %"),
+        ("`light.living_room` 🇦🇷 tiene 1️⃣ alarma", "light.living room tiene 1 alarma"),
+        ("¿La prendo? 🙂", "¿La prendo?"),
+        ("👍", "👍"),
+    ],
+)
+def test_speech_text_cleans_markup_but_keeps_meaning(text: str, speech: str) -> None:
+    """Spoken text drops presentation markup while keeping numbers, units and negations."""
+    assert _speech_text(text) == speech
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["https://a" + ")" * 8_180 + "x", "[" * 8_190, "[a](" * 2_000],
+    ids=["url-parens", "brackets", "link-openers"],
+)
+def test_speech_text_stays_linear_on_pathological_replies(text: str) -> None:
+    """A maximum-size hostile reply cannot stall Home Assistant's event loop."""
+    started = time.perf_counter()
+    _speech_text(text)
+    assert time.perf_counter() - started < 0.1
+
+
+async def test_speech_is_cleaned_while_chat_log_keeps_original_text(
+    hass: HomeAssistant,
+) -> None:
+    """TTS receives the cleaned copy; HA's ChatLog retains Hermes' full answer."""
+    original = "**Listo** ✅\n- Luz: [encendida](https://example.test/x)"
+    async with _loaded_entity(hass) as (_entry_value, client, entity_id):
+        client.async_respond.return_value = HermesResponse(response_id="id", text=original)
+        result = await _converse(hass, entity_id, conversation_id="cleaned-speech")
+        stored = hass.data[chat_log_module.DATA_CHAT_LOGS]["cleaned-speech"]
+
+    assert result.response.speech["plain"]["speech"] == "Listo. Luz: encendida"
+    assert isinstance(stored.content[-1], AssistantContent)
+    assert stored.content[-1].content == original
 
 
 async def test_dispatcher_completes_local_chat_log_without_forwarding_it(
