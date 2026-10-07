@@ -461,7 +461,7 @@ async def test_rejects_invalid_response_schema_and_excessive_output() -> None:
             await client.async_respond(model="fixture-model", utterance="status", conversation="c")
 
 
-@pytest.mark.parametrize("tool_type", ["function_call", "function_call_output"])
+@pytest.mark.parametrize("tool_type", ["function_call", "function_call_output", "reasoning"])
 def test_rejects_completed_response_with_only_tool_records(tool_type: str) -> None:
     payload = completed_response() | {"output": [{"type": tool_type}]}
     client = HermesClient(FakeSession([]), "https://hermes.invalid", "secret")  # type: ignore[arg-type]
@@ -489,6 +489,33 @@ async def test_accepts_tool_records_followed_by_final_assistant_output() -> None
     )
 
     assert response.text == "safe status"
+
+
+async def test_reasoning_records_are_skipped_and_never_spoken() -> None:
+    reasoning = {
+        "id": "rs_1",
+        "type": "reasoning",
+        "status": "completed",
+        "summary": [{"type": "summary_text", "text": "private reasoning"}],
+    }
+    payload = completed_response() | {
+        "output": [
+            reasoning,
+            {"type": "function_call"},
+            {"type": "function_call_output"},
+            reasoning,
+            completed_response()["output"][0],  # type: ignore[index]
+        ]
+    }
+    session = FakeSession([FakeResponse(capabilities()), FakeResponse(payload)])
+    client = HermesClient(session, "https://hermes.invalid", "secret")  # type: ignore[arg-type]
+
+    response = await client.async_respond(
+        model="fixture-model", utterance="status", conversation="c"
+    )
+
+    assert response.text == "safe status"
+    assert [call[0] for call in session.calls] == ["GET", "POST"]
 
 
 async def test_bounds_request_fields_before_dispatch() -> None:

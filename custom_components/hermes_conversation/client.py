@@ -433,7 +433,7 @@ class HermesClient:
         for item in output:
             if not isinstance(item, dict):
                 raise HermesProtocolError("/v1/responses output items must be objects")
-            if item.get("type") in {"function_call", "function_call_output"}:
+            if item.get("type") in {"function_call", "function_call_output", "reasoning"}:
                 continue
             if item.get("type") != "message" or item.get("role") != "assistant":
                 raise HermesProtocolError(
