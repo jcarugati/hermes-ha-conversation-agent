@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import datetime
 import ipaddress
 import json
 import math
+import re
 import ssl
 from pathlib import Path
 from typing import Any, cast
@@ -298,6 +300,83 @@ async def test_fixed_endpoints_auth_headers_and_allowlisted_body() -> None:
     assert request["timeout"].total is not None
 
 
+async def test_preflight_uses_short_timeout_and_post_keeps_configured_timeout() -> None:
+    session = FakeSession(
+        [
+            FakeResponse(health()),
+            FakeResponse(capabilities()),
+            FakeResponse(completed_response()),
+        ]
+    )
+    client = HermesClient(session, "https://hermes.invalid", "secret", total_timeout=90)  # type: ignore[arg-type]
+
+    await client.async_health()
+    await client.async_respond(model="fixture-model", utterance="status", conversation="c")
+
+    assert [(call[0], call[2]["timeout"].total) for call in session.calls] == [
+        ("GET", 5.0),
+        ("GET", 5.0),
+        ("POST", 90.0),
+    ]
+
+
+@pytest.mark.parametrize(
+    ("responses", "outcome", "output_chars"),
+    [
+        ([FakeResponse(capabilities()), FakeResponse(completed_response())], "HermesResponse", 11),
+        ([FakeResponse({}, status=401)], "HermesAuthenticationError", 0),
+        ([FakeResponse(capabilities()), TimeoutError()], "HermesIndeterminateError", 0),
+    ],
+)
+async def test_turn_debug_log_has_timings_and_outcome_without_private_data(
+    caplog: pytest.LogCaptureFixture,
+    responses: list[FakeResponse | BaseException],
+    outcome: str,
+    output_chars: int,
+) -> None:
+    client = HermesClient(FakeSession(responses), "https://hermes.invalid", "fixture-secret")  # type: ignore[arg-type]
+    caplog.set_level("DEBUG", logger="custom_components.hermes_conversation.client")
+
+    with contextlib.suppress(HermesClientError):
+        await client.async_respond(
+            model="fixture-model", utterance="private utterance", conversation="opaque-key"
+        )
+
+    [record] = caplog.records
+    message = record.getMessage()
+    assert record.levelname == "DEBUG"
+    assert re.fullmatch(
+        rf"Hermes turn: preflight \d+\.\d{{3}} s, POST \d+\.\d{{3}} s, "
+        rf"outcome {outcome}, output {output_chars} chars",
+        message,
+    )
+    for private in ("fixture-secret", "private utterance", "opaque-key", "hermes.invalid"):
+        assert private not in message
+
+
+@pytest.mark.parametrize(
+    ("utterance", "options"),
+    [("", {}), ("x" * 5, {"max_utterance_chars": 4}), ("ñ" * 8, {"max_request_bytes": 64})],
+    ids=["empty", "too-long", "oversized-request"],
+)
+async def test_validation_failure_logs_one_turn_line_with_zero_network_time(
+    caplog: pytest.LogCaptureFixture, utterance: str, options: dict[str, int]
+) -> None:
+    session = FakeSession([])
+    client = HermesClient(session, "https://hermes.invalid", "fixture-secret", **options)  # type: ignore[arg-type]
+    caplog.set_level("DEBUG", logger="custom_components.hermes_conversation.client")
+
+    with pytest.raises(ValueError):
+        await client.async_respond(
+            model="fixture-model", utterance=utterance, conversation="opaque-key"
+        )
+
+    assert session.calls == []
+    assert [record.getMessage() for record in caplog.records] == [
+        "Hermes turn: preflight 0.000 s, POST 0.000 s, outcome ValueError, output 0 chars"
+    ]
+
+
 @pytest.mark.parametrize("status", [301, 302, 307, 308])
 async def test_rejects_redirects_without_following(status: int) -> None:
     session = FakeSession([FakeResponse({}, status=status)])
@@ -461,7 +540,7 @@ async def test_rejects_invalid_response_schema_and_excessive_output() -> None:
             await client.async_respond(model="fixture-model", utterance="status", conversation="c")
 
 
-@pytest.mark.parametrize("tool_type", ["function_call", "function_call_output"])
+@pytest.mark.parametrize("tool_type", ["function_call", "function_call_output", "reasoning"])
 def test_rejects_completed_response_with_only_tool_records(tool_type: str) -> None:
     payload = completed_response() | {"output": [{"type": tool_type}]}
     client = HermesClient(FakeSession([]), "https://hermes.invalid", "secret")  # type: ignore[arg-type]
@@ -489,6 +568,54 @@ async def test_accepts_tool_records_followed_by_final_assistant_output() -> None
     )
 
     assert response.text == "safe status"
+
+
+async def test_reasoning_records_are_skipped_and_never_spoken() -> None:
+    reasoning = {
+        "id": "rs_1",
+        "type": "reasoning",
+        "status": "completed",
+        "summary": [{"type": "summary_text", "text": "private reasoning"}],
+    }
+    payload = completed_response() | {
+        "output": [
+            reasoning,
+            {"type": "function_call"},
+            {"type": "function_call_output"},
+            reasoning,
+            completed_response()["output"][0],  # type: ignore[index]
+        ]
+    }
+    session = FakeSession([FakeResponse(capabilities()), FakeResponse(payload)])
+    client = HermesClient(session, "https://hermes.invalid", "secret")  # type: ignore[arg-type]
+
+    response = await client.async_respond(
+        model="fixture-model", utterance="status", conversation="c"
+    )
+
+    assert response.text == "safe status"
+    assert [call[0] for call in session.calls] == ["GET", "POST"]
+
+
+@pytest.mark.parametrize("with_reasoning", [False, True], ids=["whitespace", "reasoning"])
+async def test_whitespace_only_assistant_output_is_indeterminate_and_not_retried(
+    with_reasoning: bool,
+) -> None:
+    blank: list[dict[str, object]] = [
+        {"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": t}]}
+        for t in (" \n ", "\t")
+    ]
+    reasoning: list[dict[str, object]] = [{"type": "reasoning", "summary": []}]
+    payload = completed_response() | {"output": (reasoning if with_reasoning else []) + blank}
+    session = FakeSession([FakeResponse(capabilities()), FakeResponse(payload)])
+    client = HermesClient(session, "https://hermes.invalid", "secret")  # type: ignore[arg-type]
+
+    with pytest.raises(HermesIndeterminateError, match="outcome may be unknown") as raised:
+        await client.async_respond(model="fixture-model", utterance="status", conversation="c")
+
+    assert isinstance(raised.value.__cause__, HermesProtocolError)
+    assert "assistant output_text" in str(raised.value.__cause__)
+    assert [call[0] for call in session.calls] == ["GET", "POST"]
 
 
 async def test_bounds_request_fields_before_dispatch() -> None:
@@ -549,6 +676,25 @@ async def test_capability_model_mismatch_prevents_post() -> None:
     with pytest.raises(HermesProtocolError, match="model"):
         await client.async_respond(model="different-model", utterance="status", conversation="c")
     assert [call[0] for call in session.calls] == ["GET"]
+
+
+async def test_model_alias_ignores_a_changed_advertised_default_model() -> None:
+    """The alias route never uses the default, so a renamed default does not block it."""
+    session = FakeSession(
+        [
+            FakeResponse(capabilities() | {"model": "renamed-default"}),
+            FakeResponse(completed_response() | {"model": "alias-model"}),
+        ]
+    )
+    client = HermesClient(session, "https://hermes.invalid", "secret")  # type: ignore[arg-type]
+
+    response = await client.async_respond(
+        model="fixture-model", utterance="status", conversation="c", model_alias="alias-model"
+    )
+
+    assert response.text == "safe status"
+    assert [call[0] for call in session.calls] == ["GET", "POST"]
+    assert json.loads(session.calls[1][2]["data"])["model"] == "alias-model"
 
 
 async def test_model_alias_changes_only_the_wire_model() -> None:
@@ -621,6 +767,16 @@ async def test_post_failures_are_indeterminate_after_exactly_one_dispatch(
     with pytest.raises(HermesIndeterminateError, match="outcome may be unknown") as raised:
         await client.async_respond(model="fixture-model", utterance="status", conversation="c")
     assert isinstance(raised.value.__cause__, HermesProtocolError)
+    assert [call[0] for call in session.calls] == ["GET", "POST"]
+
+
+@pytest.mark.parametrize("status", [401, 403])
+async def test_post_authentication_rejection_is_not_indeterminate(status: int) -> None:
+    session = FakeSession([FakeResponse(capabilities()), FakeResponse({}, status=status)])
+    client = HermesClient(session, "https://hermes.invalid", "secret")  # type: ignore[arg-type]
+    with pytest.raises(HermesAuthenticationError, match=f"HTTP {status}") as raised:
+        await client.async_respond(model="fixture-model", utterance="status", conversation="c")
+    assert not isinstance(raised.value, HermesIndeterminateError)
     assert [call[0] for call in session.calls] == ["GET", "POST"]
 
 

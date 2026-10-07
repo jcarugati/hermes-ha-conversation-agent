@@ -2,13 +2,6 @@
 
 from typing import Final
 
-from .client import (
-    DEFAULT_CONNECT_TIMEOUT,
-    DEFAULT_MAX_OUTPUT_CHARS,
-    DEFAULT_NEW_ENTRY_TOTAL_TIMEOUT,
-    DEFAULT_TOTAL_TIMEOUT,
-)
-
 DOMAIN: Final = "hermes_conversation"
 
 CONF_URL: Final = "url"
@@ -19,6 +12,10 @@ CONF_CONNECT_TIMEOUT: Final = "connect_timeout"
 CONF_TOTAL_TIMEOUT: Final = "total_timeout"
 CONF_MAX_OUTPUT_CHARS: Final = "max_output_chars"
 CONF_MODEL_ALIAS: Final = "model_alias"
+
+DEFAULT_CONNECT_TIMEOUT: Final = 5.0
+DEFAULT_TOTAL_TIMEOUT: Final = 90.0
+DEFAULT_MAX_OUTPUT_CHARS: Final = 8_192
 
 __all__ = [
     "CONF_ACKNOWLEDGE_INSECURE_HTTP",
@@ -31,7 +28,6 @@ __all__ = [
     "CONF_URL",
     "DEFAULT_CONNECT_TIMEOUT",
     "DEFAULT_MAX_OUTPUT_CHARS",
-    "DEFAULT_NEW_ENTRY_TOTAL_TIMEOUT",
     "DEFAULT_TOTAL_TIMEOUT",
     "DOMAIN",
 ]

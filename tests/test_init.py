@@ -9,6 +9,7 @@ from pytest_homeassistant_custom_component.common import (  # type: ignore[impor
     MockConfigEntry,
 )
 
+from custom_components.hermes_conversation import create_client
 from custom_components.hermes_conversation.client import (
     HermesAuthenticationError,
     HermesCapabilities,
@@ -55,6 +56,19 @@ async def test_setup_revalidates_and_stores_runtime_client(hass: HomeAssistant) 
     assert entry.runtime_data.client is validate.await_args.args[1]
     assert entry.runtime_data.model == "validated-model"
     validate.assert_awaited_once()
+
+
+async def test_entry_without_saved_timeout_uses_new_entry_default(hass: HomeAssistant) -> None:
+    """Entries saved before the timeout option existed get the same 90 s as new entries."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_URL: "https://hermes.example.test", CONF_TOKEN: "secret"},
+    )
+    entry.add_to_hass(hass)
+
+    client = create_client(hass, entry)
+
+    assert client._timeout.total == 90.0
 
 
 async def test_unavailable_setup_raises_not_ready(hass: HomeAssistant) -> None:

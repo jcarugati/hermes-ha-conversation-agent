@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import secrets
 from collections import OrderedDict
 from typing import Final, Literal, override
@@ -27,6 +28,43 @@ _INDETERMINATE_ERROR = (
 _INVALID_ERROR = "La solicitud no es válida."
 _MAX_TRACKED_CONVERSATIONS: Final = 256
 _UNAVAILABLE_ERROR = "Hermes no está disponible."
+_UNSPEAKABLE_ERROR = (
+    "La respuesta no se puede leer en voz alta. Revisa el estado antes de intentarlo de nuevo."
+)
+_EMOJI: Final = re.compile(
+    "[\u200d\u20e3\u2300-\u23ff\u2600-\u27bf\u2b00-\u2bff\ufe0f\U0001f000-\U0001faff]"
+)
+# Paired emphasis/code delimiters only; a lone or spaced "*" stays (2*3, a * b).
+_EMPHASIS: Final = tuple(
+    re.compile(rf"(?<![\w{d}])({d}{n})(?![\s{d}])([^{d}\n]+)(?<![\s{d}])\1(?![\w{d}])")
+    for d, n in ((r"\*", "{1,3}"), ("_", "{1,3}"), ("~", "{2}"), ("`", ""))
+)
+# A "-" or "+" before a number is a sign, not a bullet.
+_LINE_MARKER: Final = re.compile(r"\s*(?:(#{1,6})|[*•]|[-+](?!\s+\d))\s+")
+_ORDERED_ITEM: Final = re.compile(r"\s*\d{1,9}[.)]\s")
+_LINK: Final = re.compile(r"!?\[([^\[\]]*)\]\([^()\s]*\)")
+_URL: Final = re.compile(r"<?https?://[^\s<>]*[^\s<>.,;:!?)]>?")
+
+
+def _speech_text(text: str) -> str:
+    """Return a TTS-friendly copy, or "" when nothing speakable remains."""
+    cleaned = _EMOJI.sub("", _URL.sub("", _LINK.sub(r"\1", text)))
+    spoken, after_heading = "", False
+    for line in cleaned.splitlines():
+        marker = _LINE_MARKER.match(line)
+        # Wrapped prose joins with a space; headings and list items end a sentence.
+        new_sentence = after_heading or bool(marker or _ORDERED_ITEM.match(line))
+        line = line[marker.end() :] if marker else line
+        for emphasis in _EMPHASIS:
+            line = emphasis.sub(r"\2", line)
+        line = re.sub(r"\s+(?=[.,;:!?])", "", " ".join(line.split()))
+        if not line:
+            continue
+        if spoken:
+            spoken += ". " if new_sentence and spoken[-1] not in ".,;:!?…" else " "
+        spoken += line
+        after_heading = bool(marker and marker[1])
+    return spoken if any(char.isalnum() for char in spoken) else ""
 
 
 async def async_setup_entry(
@@ -128,8 +166,15 @@ class HermesConversationEntity(conversation.ConversationEntity):
             chat_log.async_add_assistant_content_without_tools(
                 conversation.AssistantContent(agent_id=self.entity_id, content=result.text)
             )
-            intent_response.async_set_speech(result.text)
+            if speech := _speech_text(result.text):
+                intent_response.async_set_speech(speech)
+            else:
+                intent_response.async_set_error(
+                    intent.IntentResponseErrorCode.UNKNOWN, _UNSPEAKABLE_ERROR
+                )
         return conversation.ConversationResult(
             response=intent_response,
             conversation_id=conversation_id,
+            continue_conversation=chat_log.continue_conversation
+            and intent_response.response_type is not intent.IntentResponseType.ERROR,
         )

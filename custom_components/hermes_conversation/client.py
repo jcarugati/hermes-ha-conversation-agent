@@ -5,7 +5,9 @@ from __future__ import annotations
 import asyncio
 import ipaddress
 import json
+import logging
 import math
+import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
@@ -15,13 +17,14 @@ from urllib.parse import unquote, urlsplit, urlunsplit
 
 import aiohttp
 
-DEFAULT_CONNECT_TIMEOUT: Final = 5.0
-DEFAULT_TOTAL_TIMEOUT: Final = 30.0
-DEFAULT_NEW_ENTRY_TOTAL_TIMEOUT: Final = 90.0
+from .const import DEFAULT_CONNECT_TIMEOUT, DEFAULT_MAX_OUTPUT_CHARS, DEFAULT_TOTAL_TIMEOUT
+
+_LOGGER = logging.getLogger(__name__)
+
 DEFAULT_MAX_REQUEST_BYTES: Final = 32_768
 DEFAULT_MAX_RESPONSE_BYTES: Final = 1_048_576
 DEFAULT_MAX_UTTERANCE_CHARS: Final = 8_192
-DEFAULT_MAX_OUTPUT_CHARS: Final = 8_192
+PREFLIGHT_TIMEOUT: Final = 5.0
 MAX_MODEL_CHARS: Final = 512
 MAX_CONVERSATION_CHARS: Final = 512
 _HTTP_HOST_SUFFIXES: Final = (".local", ".home.arpa", ".ts.net")
@@ -203,6 +206,9 @@ class HermesClient:
         self._session = session
         self._token = token
         self._timeout = aiohttp.ClientTimeout(total=total_timeout, connect=connect_timeout)
+        self._preflight_timeout = aiohttp.ClientTimeout(
+            total=min(PREFLIGHT_TIMEOUT, total_timeout), connect=connect_timeout
+        )
         self._max_request_bytes = max_request_bytes
         self._max_response_bytes = max_response_bytes
         self._max_utterance_chars = max_utterance_chars
@@ -251,43 +257,67 @@ class HermesClient:
         """Submit one bounded, non-streaming, data-only named-conversation turn.
 
         When *model_alias* is provided, it becomes the wire and response model
-        while *model* remains the capabilities-advertised default.
+        while *model* remains the setup-time default. The currently advertised
+        model is compared with *model* only when no alias replaces it.
         """
-        self._validate_request_string("model", model, MAX_MODEL_CHARS)
-        if model_alias is not None:
-            self._validate_request_string("model_alias", model_alias, MAX_MODEL_CHARS)
-        self._validate_request_string("utterance", utterance, self._max_utterance_chars)
-        self._validate_request_string("conversation", conversation, MAX_CONVERSATION_CHARS)
-        request_model = model_alias or model
-        body: dict[str, object] = {
-            "model": request_model,
-            "input": utterance,
-            "conversation": conversation,
-            "stream": False,
-        }
-        encoded = json.dumps(body, ensure_ascii=False, separators=(",", ":")).encode()
-        if len(encoded) > self._max_request_bytes:
-            raise ValueError(f"request exceeds {self._max_request_bytes} bytes")
-        capabilities = await self.async_capabilities()
-        if capabilities.model != model:
-            raise HermesProtocolError("/v1/capabilities model does not match the request")
-        post_dispatch_error: HermesClientError | None = None
+        started: float | None = None
+        preflight: float | None = None
+        outcome, output_chars = HermesResponse.__name__, 0
         try:
-            payload = await self._request_json(
-                "POST", "/v1/responses", authenticated=True, body=encoded, indeterminate=True
+            self._validate_request_string("model", model, MAX_MODEL_CHARS)
+            if model_alias is not None:
+                self._validate_request_string("model_alias", model_alias, MAX_MODEL_CHARS)
+            self._validate_request_string("utterance", utterance, self._max_utterance_chars)
+            self._validate_request_string("conversation", conversation, MAX_CONVERSATION_CHARS)
+            request_model = model_alias or model
+            body: dict[str, object] = {
+                "model": request_model,
+                "input": utterance,
+                "conversation": conversation,
+                "stream": False,
+            }
+            encoded = json.dumps(body, ensure_ascii=False, separators=(",", ":")).encode()
+            if len(encoded) > self._max_request_bytes:
+                raise ValueError(f"request exceeds {self._max_request_bytes} bytes")
+            started = time.monotonic()
+            capabilities = await self.async_capabilities()
+            if model_alias is None and capabilities.model != model:
+                raise HermesProtocolError("/v1/capabilities model does not match the request")
+            preflight = time.monotonic() - started
+            post_dispatch_error: HermesClientError | None = None
+            try:
+                payload = await self._request_json(
+                    "POST", "/v1/responses", authenticated=True, body=encoded, indeterminate=True
+                )
+                response = self._parse_response(payload, request_model)
+                output_chars = len(response.text)
+                return response
+            except asyncio.CancelledError:
+                raise
+            except HermesAuthenticationError:
+                raise
+            except HermesIndeterminateError:
+                raise
+            except _HermesPreDispatchError:
+                raise
+            except HermesClientError as err:
+                post_dispatch_error = err
+            raise HermesIndeterminateError(
+                "POST /v1/responses failed after dispatch; outcome may be unknown"
+            ) from post_dispatch_error
+        except BaseException as err:
+            outcome = type(err).__name__
+            raise
+        finally:
+            # Zero network durations when validation fails before any request.
+            elapsed = 0.0 if started is None else time.monotonic() - started
+            _LOGGER.debug(
+                "Hermes turn: preflight %.3f s, POST %.3f s, outcome %s, output %d chars",
+                elapsed if preflight is None else preflight,
+                0.0 if preflight is None else elapsed - preflight,
+                outcome,
+                output_chars,
             )
-            return self._parse_response(payload, request_model)
-        except asyncio.CancelledError:
-            raise
-        except HermesIndeterminateError:
-            raise
-        except _HermesPreDispatchError:
-            raise
-        except HermesClientError as err:
-            post_dispatch_error = err
-        raise HermesIndeterminateError(
-            "POST /v1/responses failed after dispatch; outcome may be unknown"
-        ) from post_dispatch_error
 
     @staticmethod
     def _validate_request_string(name: str, value: str, maximum: int) -> None:
@@ -331,7 +361,7 @@ class HermesClient:
                     headers=headers,
                     data=body,
                     allow_redirects=False,
-                    timeout=self._timeout,
+                    timeout=self._timeout if indeterminate else self._preflight_timeout,
                 )
             except asyncio.CancelledError:
                 raise
@@ -433,7 +463,7 @@ class HermesClient:
         for item in output:
             if not isinstance(item, dict):
                 raise HermesProtocolError("/v1/responses output items must be objects")
-            if item.get("type") in {"function_call", "function_call_output"}:
+            if item.get("type") in {"function_call", "function_call_output", "reasoning"}:
                 continue
             if item.get("type") != "message" or item.get("role") != "assistant":
                 raise HermesProtocolError(
@@ -453,9 +483,9 @@ class HermesClient:
                         "/v1/responses content items must be non-empty output_text"
                     )
                 parts.append(part["text"])
-        if not parts:
-            raise HermesProtocolError("/v1/responses requires non-empty assistant output_text")
         text = "\n".join(parts)
+        if not text.strip():
+            raise HermesProtocolError("/v1/responses requires non-empty assistant output_text")
         if len(text) > self._max_output_chars:
             raise HermesProtocolError(
                 f"/v1/responses output exceeds {self._max_output_chars} characters"
