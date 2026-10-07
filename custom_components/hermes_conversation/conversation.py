@@ -37,7 +37,8 @@ _EMPHASIS: Final = tuple(
     for d, n in ((r"\*", "{1,3}"), ("_", "{1,3}"), ("~", "{2}"), ("`", ""))
 )
 # A "-" or "+" before a number is a sign, not a bullet.
-_LINE_MARKER: Final = re.compile(r"^\s*(?:#{1,6}|[*•]|[-+](?!\s+\d))\s+")
+_LINE_MARKER: Final = re.compile(r"\s*(?:(#{1,6})|[*•]|[-+](?!\s+\d))\s+")
+_ORDERED_ITEM: Final = re.compile(r"\s*\d{1,9}[.)]\s")
 _LINK: Final = re.compile(r"!?\[([^\[\]]*)\]\([^()\s]*\)")
 _URL: Final = re.compile(r"<?https?://[^\s<>]*[^\s<>.,;:!?)]>?")
 
@@ -45,15 +46,21 @@ _URL: Final = re.compile(r"<?https?://[^\s<>]*[^\s<>.,;:!?)]>?")
 def _speech_text(text: str) -> str:
     """Return a TTS-friendly copy: no Markdown, link targets, URLs, or emoji."""
     cleaned = _EMOJI.sub("", _URL.sub("", _LINK.sub(r"\1", text)))
-    spoken = ""
+    spoken, after_heading = "", False
     for line in cleaned.splitlines():
-        line = _LINE_MARKER.sub("", line)
+        marker = _LINE_MARKER.match(line)
+        # Wrapped prose joins with a space; headings and list items end a sentence.
+        new_sentence = after_heading or bool(marker or _ORDERED_ITEM.match(line))
+        line = line[marker.end() :] if marker else line
         for emphasis in _EMPHASIS:
             line = emphasis.sub(r"\2", line)
         line = re.sub(r"\s+(?=[.,;:!?])", "", " ".join(line.split()))
-        if line and spoken:
-            spoken += " " if spoken[-1] in ".,;:!?…" else ". "
+        if not line:
+            continue
+        if spoken:
+            spoken += ". " if new_sentence and spoken[-1] not in ".,;:!?…" else " "
         spoken += line
+        after_heading = bool(marker and marker[1])
     return spoken or text
 
 

@@ -397,6 +397,14 @@ async def test_tool_only_response_is_error_and_is_not_retried(hass: HomeAssistan
         ("Consumo: 2*3 W, a * b, 2*3*4 y ~5 °C", "Consumo: 2*3 W, a * b, 2*3*4 y ~5 °C"),
         ("__Ojo__: ~~nada~~ (*nota*) ***x*** y snake_case", "Ojo: nada (nota) x y snake_case"),
         ("¿La prendo? 🙂", "¿La prendo?"),
+        (
+            "No\nhay alarmas y la luz\nno está encendida.",
+            "No hay alarmas y la luz no está encendida.",
+        ),
+        (
+            "## Estado\n\nNo hay\nalarmas\n- No\nhay fugas\n3) Puerta",
+            "Estado. No hay alarmas. No hay fugas. 3) Puerta",
+        ),
         ("👍", "👍"),
     ],
 )

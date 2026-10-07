@@ -35,7 +35,7 @@ The total timeout applies only to the Responses POST. `/health` and `/v1/capabil
 
 ## Response and speech data flow
 
-On success the entity stores Hermes' full reply in Home Assistant's ChatLog and sets the intent speech to a cleaned copy. The cleaning is a small local function: it removes only recognized Markdown delimiters (paired emphasis/code delimiters, headings, and bullet markers at the start of a line, joining lines as sentences), link targets, bare URLs, and emoji. It keeps numbers, signs, arithmetic, units, and negations: a line-start `-` or `+` followed by a number is a sign, and an unpaired, intraword, or spaced `*` or `_` is left alone. Nothing about the cleaning is sent to Hermes.
+On success the entity stores Hermes' full reply in Home Assistant's ChatLog and sets the intent speech to a cleaned copy. The cleaning is a small local function: it removes only recognized Markdown delimiters (paired emphasis/code delimiters, headings, and bullet markers at the start of a line), link targets, bare URLs, and emoji. It keeps numbers, signs, arithmetic, units, and negations: a line-start `-` or `+` followed by a number is a sign, and an unpaired, intraword, or spaced `*` or `_` is left alone. Wrapped prose lines are joined with a space; a sentence boundary is added only before a recognized heading or list item (bullet or ordered) and after a heading, so `No\nhay alarmas` stays one sentence. Nothing about the cleaning is sent to Hermes.
 
 The `ConversationResult` carries Home Assistant's own `ChatLog.continue_conversation`, which is true when the last assistant message ends with a question mark. Assist satellites then reopen the microphone for the answer. Error turns add no assistant message and never continue.
 
