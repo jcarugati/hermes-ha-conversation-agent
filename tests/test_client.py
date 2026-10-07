@@ -597,6 +597,27 @@ async def test_reasoning_records_are_skipped_and_never_spoken() -> None:
     assert [call[0] for call in session.calls] == ["GET", "POST"]
 
 
+@pytest.mark.parametrize("with_reasoning", [False, True], ids=["whitespace", "reasoning"])
+async def test_whitespace_only_assistant_output_is_indeterminate_and_not_retried(
+    with_reasoning: bool,
+) -> None:
+    blank: list[dict[str, object]] = [
+        {"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": t}]}
+        for t in (" \n ", "\t")
+    ]
+    reasoning: list[dict[str, object]] = [{"type": "reasoning", "summary": []}]
+    payload = completed_response() | {"output": (reasoning if with_reasoning else []) + blank}
+    session = FakeSession([FakeResponse(capabilities()), FakeResponse(payload)])
+    client = HermesClient(session, "https://hermes.invalid", "secret")  # type: ignore[arg-type]
+
+    with pytest.raises(HermesIndeterminateError, match="outcome may be unknown") as raised:
+        await client.async_respond(model="fixture-model", utterance="status", conversation="c")
+
+    assert isinstance(raised.value.__cause__, HermesProtocolError)
+    assert "assistant output_text" in str(raised.value.__cause__)
+    assert [call[0] for call in session.calls] == ["GET", "POST"]
+
+
 async def test_bounds_request_fields_before_dispatch() -> None:
     session = FakeSession([])
     client = HermesClient(session, "https://hermes.invalid", "secret", max_utterance_chars=4)  # type: ignore[arg-type]

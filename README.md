@@ -12,7 +12,7 @@ It uses authenticated `POST /v1/responses`; it never uses chat completions itsel
 
 Conversation continuity follows Home Assistant's `conversation_id`. A first turn without one receives a new opaque ID in the result. The entry maps that ID to a separate opaque Hermes named-conversation key and reuses the key for follow-up turns; distinct HA IDs stay isolated and the HA ID itself is never sent to Hermes. The entry retains the 256 most recently used mappings, so an evicted inactive ID starts a new Hermes context if it returns rather than sharing another conversation's context.
 
-Responses may contain Hermes tool records and `reasoning` records before the final assistant message. Both are skipped; reasoning is never spoken. A completed response with no final assistant text is rejected and is never treated as speakable success.
+Responses may contain Hermes tool records and `reasoning` records before the final assistant message. Both are skipped; reasoning is never spoken. A completed response with no final assistant text, or whose assembled assistant text is only whitespace, is rejected as indeterminate (never retried) and is never treated as speakable success.
 
 The Responses POST uses a 90-second total timeout by default (adjustable from 1 to 120 seconds). Entries without a saved value use the same 90-second default as new entries; an explicitly saved value is kept. To change it, open **Settings → Devices & services → Hermes Conversation Agent → Configure**, set **Total timeout**, and submit the options form. The `/health` and `/v1/capabilities` checks have their own 5-second timeout (never longer than the total timeout), so a stalled check fails quickly instead of holding the voice turn.
 

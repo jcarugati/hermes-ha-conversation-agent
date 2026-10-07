@@ -23,7 +23,7 @@ The server must identify as Hermes, require bearer authentication, advertise `re
 
 Hermes owns the tool/MCP policy and can use the same configured abilities as its other channels. The Conversation entity therefore advertises Home Assistant control support, but that UI capability is not an authorization boundary.
 
-The response parser skips Hermes tool records (`function_call`, `function_call_output`) and `reasoning` records, and succeeds only when final non-empty assistant `output_text` is also present. Reasoning text is never returned or spoken. Any other output item type is a protocol error, and a completed response without final assistant text cannot enter the Conversation entity's success path.
+The response parser skips Hermes tool records (`function_call`, `function_call_output`) and `reasoning` records, and succeeds only when final non-empty assistant `output_text` is also present and the assembled assistant text contains a non-whitespace character. Reasoning text is never returned or spoken. Any other output item type is a protocol error, and a completed response without final assistant text cannot enter the Conversation entity's success path.
 
 Once a POST has been dispatched, the bridge never retries it. A timeout, disconnect, malformed response, or response without final assistant text becomes an indeterminate result; the retained internal cause is sanitized while the Conversation entity returns only its fixed confirmation-failure message. HTTP 401/403 on the POST is a definite authentication rejection rather than an indeterminate result: the client raises its authentication error and the entity starts Home Assistant's reauthentication flow.
 
