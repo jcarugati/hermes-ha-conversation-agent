@@ -10,7 +10,7 @@ The Hermes instance governs its own tools and MCP servers. A voice utterance is 
 
 - Keep Hermes private: LAN, Tailnet, or a private reverse proxy; never public Internet.
 - Bearer authentication is sent only in the Authorization header; never in URLs or logs.
-- The only log output is one `DEBUG` line per turn with preflight/POST durations, the outcome class name, and the reply length. It never contains transcripts, reply text, tokens, URLs, or conversation keys.
+- The only log output is one `DEBUG` line per turn, including turns rejected by local validation (zero network durations), with preflight/POST durations, the outcome class name, and the reply length. It never contains transcripts, reply text, tokens, URLs, or conversation keys.
 - HTTPS validates normally. Private HTTP requires explicit acknowledgement and a private-host allowlist.
 - Redirects are disabled. The client uses an isolated cookie jar, so Home Assistant cookies never cross the boundary.
 - The only request body is `{model, input, conversation, stream: false}`. It contains no HA context, user/device identifiers, ChatLog history, credentials, tools, actions, instructions, or prompt overrides.

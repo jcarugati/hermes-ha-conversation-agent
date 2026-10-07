@@ -52,7 +52,7 @@ This applies to every Hermes channel that runs that model, not only Voice. To ke
   ```
 
   This hint applies to every client of the Hermes API server, not only Voice. Write it in the language you speak to Assist.
-- **Debug timings.** With debug logging enabled for `custom_components.hermes_conversation`, each turn logs one line with the preflight and POST durations, the outcome class name, and the reply length in characters. It never logs the transcript, reply text, token, URL, or conversation key.
+- **Debug timings.** With debug logging enabled for `custom_components.hermes_conversation`, each turn logs one line with the preflight and POST durations, the outcome class name, and the reply length in characters. A turn rejected by local validation (for example an empty or oversized utterance) still logs its line, with both durations `0.000 s` and outcome `ValueError`. It never logs the transcript, reply text, token, URL, or conversation key.
 
 ## Security and rollout
 

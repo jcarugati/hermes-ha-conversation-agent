@@ -260,25 +260,26 @@ class HermesClient:
         while *model* remains the setup-time default. The currently advertised
         model is compared with *model* only when no alias replaces it.
         """
-        self._validate_request_string("model", model, MAX_MODEL_CHARS)
-        if model_alias is not None:
-            self._validate_request_string("model_alias", model_alias, MAX_MODEL_CHARS)
-        self._validate_request_string("utterance", utterance, self._max_utterance_chars)
-        self._validate_request_string("conversation", conversation, MAX_CONVERSATION_CHARS)
-        request_model = model_alias or model
-        body: dict[str, object] = {
-            "model": request_model,
-            "input": utterance,
-            "conversation": conversation,
-            "stream": False,
-        }
-        encoded = json.dumps(body, ensure_ascii=False, separators=(",", ":")).encode()
-        if len(encoded) > self._max_request_bytes:
-            raise ValueError(f"request exceeds {self._max_request_bytes} bytes")
-        started = time.monotonic()
+        started: float | None = None
         preflight: float | None = None
         outcome, output_chars = HermesResponse.__name__, 0
         try:
+            self._validate_request_string("model", model, MAX_MODEL_CHARS)
+            if model_alias is not None:
+                self._validate_request_string("model_alias", model_alias, MAX_MODEL_CHARS)
+            self._validate_request_string("utterance", utterance, self._max_utterance_chars)
+            self._validate_request_string("conversation", conversation, MAX_CONVERSATION_CHARS)
+            request_model = model_alias or model
+            body: dict[str, object] = {
+                "model": request_model,
+                "input": utterance,
+                "conversation": conversation,
+                "stream": False,
+            }
+            encoded = json.dumps(body, ensure_ascii=False, separators=(",", ":")).encode()
+            if len(encoded) > self._max_request_bytes:
+                raise ValueError(f"request exceeds {self._max_request_bytes} bytes")
+            started = time.monotonic()
             capabilities = await self.async_capabilities()
             if model_alias is None and capabilities.model != model:
                 raise HermesProtocolError("/v1/capabilities model does not match the request")
@@ -308,7 +309,8 @@ class HermesClient:
             outcome = type(err).__name__
             raise
         finally:
-            elapsed = time.monotonic() - started
+            # Zero network durations when validation fails before any request.
+            elapsed = 0.0 if started is None else time.monotonic() - started
             _LOGGER.debug(
                 "Hermes turn: preflight %.3f s, POST %.3f s, outcome %s, output %d chars",
                 elapsed if preflight is None else preflight,

@@ -82,7 +82,7 @@ logger:
     custom_components.hermes_conversation: debug
 ```
 
-Each turn then logs one line with the preflight and POST durations, the outcome class name (for example `HermesResponse` or `HermesIndeterminateError`), and the reply length in characters. The line never contains the transcript, reply text, token, URL, or conversation key.
+Each turn then logs one line with the preflight and POST durations, the outcome class name (for example `HermesResponse` or `HermesIndeterminateError`), and the reply length in characters. A turn rejected by local validation before any request (for example an empty or oversized utterance) also logs its line, with both durations `0.000 s` and outcome `ValueError`. The line never contains the transcript, reply text, token, URL, or conversation key.
 
 ## Verify safely
 

@@ -354,6 +354,29 @@ async def test_turn_debug_log_has_timings_and_outcome_without_private_data(
         assert private not in message
 
 
+@pytest.mark.parametrize(
+    ("utterance", "options"),
+    [("", {}), ("x" * 5, {"max_utterance_chars": 4}), ("ñ" * 8, {"max_request_bytes": 64})],
+    ids=["empty", "too-long", "oversized-request"],
+)
+async def test_validation_failure_logs_one_turn_line_with_zero_network_time(
+    caplog: pytest.LogCaptureFixture, utterance: str, options: dict[str, int]
+) -> None:
+    session = FakeSession([])
+    client = HermesClient(session, "https://hermes.invalid", "fixture-secret", **options)  # type: ignore[arg-type]
+    caplog.set_level("DEBUG", logger="custom_components.hermes_conversation.client")
+
+    with pytest.raises(ValueError):
+        await client.async_respond(
+            model="fixture-model", utterance=utterance, conversation="opaque-key"
+        )
+
+    assert session.calls == []
+    assert [record.getMessage() for record in caplog.records] == [
+        "Hermes turn: preflight 0.000 s, POST 0.000 s, outcome ValueError, output 0 chars"
+    ]
+
+
 @pytest.mark.parametrize("status", [301, 302, 307, 308])
 async def test_rejects_redirects_without_following(status: int) -> None:
     session = FakeSession([FakeResponse({}, status=status)])

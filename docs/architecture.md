@@ -41,7 +41,7 @@ The `ConversationResult` carries Home Assistant's own `ChatLog.continue_conversa
 
 ## Diagnostics
 
-The client emits one `DEBUG` log line per turn with the monotonic durations of the capabilities preflight and the POST, the outcome class name, and the reply length in characters. It contains no transcript, reply text, token, URL, or conversation key.
+The client emits one `DEBUG` log line per turn with the monotonic durations of the capabilities preflight and the POST, the outcome class name, and the reply length in characters. Request validation runs inside the same logging scope, so a turn rejected before any request still logs its line, with zero network durations. It contains no transcript, reply text, token, URL, or conversation key.
 
 ## Model data flow
 
