@@ -132,4 +132,5 @@ class HermesConversationEntity(conversation.ConversationEntity):
         return conversation.ConversationResult(
             response=intent_response,
             conversation_id=conversation_id,
+            continue_conversation=chat_log.continue_conversation,
         )

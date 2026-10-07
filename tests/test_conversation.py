@@ -234,6 +234,26 @@ async def test_dispatcher_sends_only_allowlisted_dto_and_returns_spoken_text(
         assert forbidden not in serialized
 
 
+@pytest.mark.parametrize(
+    ("reply", "expected"),
+    [
+        (HermesResponse(response_id="id", text="¿Qué luz querés que prenda?"), True),
+        (HermesResponse(response_id="id", text="La luz quedó encendida."), False),
+        (HermesIndeterminateError("unknown outcome"), False),
+    ],
+)
+async def test_continue_conversation_follows_ha_chat_log(
+    hass: HomeAssistant, reply: HermesResponse | Exception, expected: bool
+) -> None:
+    """A final Hermes question reopens the satellite mic via HA's ChatLog rule."""
+    async with _loaded_entity(hass) as (_entry_value, client, entity_id):
+        client.async_respond.side_effect = [reply]
+        result = await _converse(hass, entity_id)
+
+    assert result.continue_conversation is expected
+    assert result.as_dict()["continue_conversation"] is expected
+
+
 async def test_first_turn_creates_id_and_follow_up_reuses_hermes_conversation(
     hass: HomeAssistant,
 ) -> None:
