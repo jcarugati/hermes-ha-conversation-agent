@@ -255,7 +255,8 @@ class HermesClient:
         """Submit one bounded, non-streaming, data-only named-conversation turn.
 
         When *model_alias* is provided, it becomes the wire and response model
-        while *model* remains the capabilities-advertised default.
+        while *model* remains the setup-time default. The currently advertised
+        model is compared with *model* only when no alias replaces it.
         """
         self._validate_request_string("model", model, MAX_MODEL_CHARS)
         if model_alias is not None:
@@ -273,7 +274,7 @@ class HermesClient:
         if len(encoded) > self._max_request_bytes:
             raise ValueError(f"request exceeds {self._max_request_bytes} bytes")
         capabilities = await self.async_capabilities()
-        if capabilities.model != model:
+        if model_alias is None and capabilities.model != model:
             raise HermesProtocolError("/v1/capabilities model does not match the request")
         post_dispatch_error: HermesClientError | None = None
         try:

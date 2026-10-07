@@ -598,6 +598,25 @@ async def test_capability_model_mismatch_prevents_post() -> None:
     assert [call[0] for call in session.calls] == ["GET"]
 
 
+async def test_model_alias_ignores_a_changed_advertised_default_model() -> None:
+    """The alias route never uses the default, so a renamed default does not block it."""
+    session = FakeSession(
+        [
+            FakeResponse(capabilities() | {"model": "renamed-default"}),
+            FakeResponse(completed_response() | {"model": "alias-model"}),
+        ]
+    )
+    client = HermesClient(session, "https://hermes.invalid", "secret")  # type: ignore[arg-type]
+
+    response = await client.async_respond(
+        model="fixture-model", utterance="status", conversation="c", model_alias="alias-model"
+    )
+
+    assert response.text == "safe status"
+    assert [call[0] for call in session.calls] == ["GET", "POST"]
+    assert json.loads(session.calls[1][2]["data"])["model"] == "alias-model"
+
+
 async def test_model_alias_changes_only_the_wire_model() -> None:
     """An alias overrides the wire model while retaining the strict DTO."""
     caps = capabilities()
