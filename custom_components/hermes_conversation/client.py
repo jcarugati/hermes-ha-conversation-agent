@@ -283,6 +283,8 @@ class HermesClient:
             return self._parse_response(payload, request_model)
         except asyncio.CancelledError:
             raise
+        except HermesAuthenticationError:
+            raise
         except HermesIndeterminateError:
             raise
         except _HermesPreDispatchError:

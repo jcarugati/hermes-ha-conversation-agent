@@ -671,6 +671,16 @@ async def test_post_failures_are_indeterminate_after_exactly_one_dispatch(
     assert [call[0] for call in session.calls] == ["GET", "POST"]
 
 
+@pytest.mark.parametrize("status", [401, 403])
+async def test_post_authentication_rejection_is_not_indeterminate(status: int) -> None:
+    session = FakeSession([FakeResponse(capabilities()), FakeResponse({}, status=status)])
+    client = HermesClient(session, "https://hermes.invalid", "secret")  # type: ignore[arg-type]
+    with pytest.raises(HermesAuthenticationError, match=f"HTTP {status}") as raised:
+        await client.async_respond(model="fixture-model", utterance="status", conversation="c")
+    assert not isinstance(raised.value, HermesIndeterminateError)
+    assert [call[0] for call in session.calls] == ["GET", "POST"]
+
+
 async def test_connect_timeout_before_post_dispatch_is_not_indeterminate() -> None:
     session = FakeSession([FakeResponse(capabilities()), aiohttp.ConnectionTimeoutError()])
     client = HermesClient(session, "https://hermes.invalid", "secret")  # type: ignore[arg-type]
