@@ -69,7 +69,7 @@ platform_hints:
 
 ### What Assist speaks
 
-- Assist speaks a cleaned copy of the reply. Markdown emphasis and code markers, heading and bullet markers, link targets, bare URLs, and emoji are removed; list lines become sentences. Numbers, units, and negations are kept. The full reply stays in Home Assistant's ChatLog.
+- Assist speaks a cleaned copy of the reply. Paired Markdown emphasis and code delimiters, heading markers, bullet markers at the start of a line, link targets, bare URLs, and emoji are removed; list lines become sentences. Numbers, signs, arithmetic, units, and negations are kept: `- 5 °C`, `-5 °C`, and `2*3 W` are spoken as written, because a `-` or `+` before a number is treated as a sign and an unpaired or spaced `*` is not emphasis. The full reply stays in Home Assistant's ChatLog.
 - When the reply ends with a question mark, the result asks the satellite to keep listening (Home Assistant's `ChatLog.continue_conversation` rule), so you can answer without the wake word. The rule reads the original reply, so a question followed by an emoji or Markdown does not reopen the mic.
 
 ### Debug timings

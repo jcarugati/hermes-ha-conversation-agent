@@ -392,7 +392,10 @@ async def test_tool_only_response_is_error_and_is_not_retried(hass: HomeAssistan
             "Mirá la guía, o. Fin",
         ),
         ("1. Prender\n2. No apagar 21,5 °C al 40 %", "1. Prender. 2. No apagar 21,5 °C al 40 %"),
-        ("`light.living_room` 🇦🇷 tiene 1️⃣ alarma", "light.living room tiene 1 alarma"),
+        ("`light.living_room` 🇦🇷 tiene 1️⃣ alarma", "light.living_room tiene 1 alarma"),
+        ("- 5 °C;\n-5 °C;\n+ 2 °C;\n- -3 °C", "- 5 °C; -5 °C; + 2 °C; -3 °C"),
+        ("Consumo: 2*3 W, a * b, 2*3*4 y ~5 °C", "Consumo: 2*3 W, a * b, 2*3*4 y ~5 °C"),
+        ("__Ojo__: ~~nada~~ (*nota*) ***x*** y snake_case", "Ojo: nada (nota) x y snake_case"),
         ("¿La prendo? 🙂", "¿La prendo?"),
         ("👍", "👍"),
     ],
@@ -404,8 +407,8 @@ def test_speech_text_cleans_markup_but_keeps_meaning(text: str, speech: str) -> 
 
 @pytest.mark.parametrize(
     "text",
-    ["https://a" + ")" * 8_180 + "x", "[" * 8_190, "[a](" * 2_000],
-    ids=["url-parens", "brackets", "link-openers"],
+    ["https://a" + ")" * 8_180 + "x", "[" * 8_190, "[a](" * 2_000, "*a " * 2_730, "_a " * 2_730],
+    ids=["url-parens", "brackets", "link-openers", "star-openers", "underscore-openers"],
 )
 def test_speech_text_stays_linear_on_pathological_replies(text: str) -> None:
     """A maximum-size hostile reply cannot stall Home Assistant's event loop."""

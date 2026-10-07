@@ -31,7 +31,13 @@ _UNAVAILABLE_ERROR = "Hermes no está disponible."
 _EMOJI: Final = re.compile(
     "[\u200d\u20e3\u2300-\u23ff\u2600-\u27bf\u2b00-\u2bff\ufe0f\U0001f000-\U0001faff]"
 )
-_LINE_MARKER: Final = re.compile(r"^\s*(?:#{1,6}|[-*+•])\s+")
+# Paired emphasis/code delimiters only; a lone or spaced "*" stays (2*3, a * b).
+_EMPHASIS: Final = tuple(
+    re.compile(rf"(?<![\w{d}])({d}{n})(?![\s{d}])([^{d}\n]+)(?<![\s{d}])\1(?![\w{d}])")
+    for d, n in ((r"\*", "{1,3}"), ("_", "{1,3}"), ("~", "{2}"), ("`", ""))
+)
+# A "-" or "+" before a number is a sign, not a bullet.
+_LINE_MARKER: Final = re.compile(r"^\s*(?:#{1,6}|[*•]|[-+](?!\s+\d))\s+")
 _LINK: Final = re.compile(r"!?\[([^\[\]]*)\]\([^()\s]*\)")
 _URL: Final = re.compile(r"<?https?://[^\s<>]*[^\s<>.,;:!?)]>?")
 
@@ -41,7 +47,9 @@ def _speech_text(text: str) -> str:
     cleaned = _EMOJI.sub("", _URL.sub("", _LINK.sub(r"\1", text)))
     spoken = ""
     for line in cleaned.splitlines():
-        line = re.sub(r"[*`]|~~", "", _LINE_MARKER.sub("", line)).replace("_", " ")
+        line = _LINE_MARKER.sub("", line)
+        for emphasis in _EMPHASIS:
+            line = emphasis.sub(r"\2", line)
         line = re.sub(r"\s+(?=[.,;:!?])", "", " ".join(line.split()))
         if line and spoken:
             spoken += " " if spoken[-1] in ".,;:!?…" else ". "
